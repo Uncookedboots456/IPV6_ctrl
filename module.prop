@@ -1,6 +1,6 @@
 id=ipv6_ctrl
 name=IPV6 Ctrl
-version=v0.1.1_Webroot
-versionCode=3
+version=0.1.2
+versionCode=4
 author=Uncookedboots456
-description=KernelSU Webroot pre-release for manual IPv6 enable/disable/status control with external IPv6 test links.
+description=KernelSU Webroot UI for manual IPv6 enable/disable/status control with external IPv6 test links.
