@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Network Stack Switch</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Android Root Network Control</p>
+            <h1>Network Stack Switch</h1>
+          </div>
+          <div id="stateBadge" class="badge pending">Checking</div>
+        </div>
+
+        <div class="actions" aria-label="IPv6 controls">
+          <button id="enableBtn" class="primary" type="button">Enable IPv6</button>
+          <button id="disableBtn" class="danger" type="button">Disable IPv6</button>
+          <button id="refreshBtn" type="button">Refresh Status</button>
+        </div>
+
+        <pre id="output" class="terminal" aria-live="polite">$ ipv6_manager status
+Waiting for manual action...</pre>
+
+        <div class="checkPanel">
+          <h2>External IPv6 Tests</h2>
+          <div class="checkActions">
+            <a class="buttonLink primaryLink" href="https://test-ipv6.com/" target="_blank" rel="noreferrer">
+              Test with test-ipv6.com
+            </a>
+            <a class="buttonLink primaryLink" href="https://ipv6-test.com/" target="_blank" rel="noreferrer">
+              Test with ipv6-test.com
+            </a>
+            <button id="onlineCheckBtn" class="secondaryCheck" type="button">Local API Check</button>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
