@@ -4,6 +4,7 @@
 # Usage: sh ipv6_manager.sh [disable|enable|status|json-status|online-check|json-online-check]
 
 PROC_IPV6_CONF="/proc/sys/net/ipv6/conf"
+APPLY_PASSES="${APPLY_PASSES:-3}"
 
 require_root() {
     if [ "$(id -u)" -ne 0 ]; then
@@ -16,12 +17,19 @@ write_value() {
     target="$1"
     value="$2"
 
-    if [ -w "$target" ]; then
-        echo "$value" > "$target" 2>/dev/null
+    if [ ! -e "$target" ]; then
+        return 2
+    fi
+
+    if echo "$value" > "$target" 2>/dev/null; then
         return $?
     fi
 
     return 1
+}
+
+sleep_between_passes() {
+    sleep 0.25 2>/dev/null || sleep 1
 }
 
 fetch_url() {
@@ -48,31 +56,136 @@ json_escape() {
     printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
-set_ipv6() {
+write_required_value() {
+    label="$1"
+    target="$2"
+    value="$3"
+
+    if write_value "$target" "$value"; then
+        echo "    [ok] $label -> $value"
+        return 0
+    fi
+
+    rc=$?
+    if [ "$rc" -eq 2 ]; then
+        echo "    [error] $label missing: $target"
+    else
+        echo "    [error] $label write failed: $target"
+    fi
+    return 1
+}
+
+apply_interface_values() {
     value="$1"
-    label="$2"
-    count=0
+    changed=0
     failed=0
-
-    require_root
-
-    sysctl -w "net.ipv6.conf.all.disable_ipv6=$value" >/dev/null 2>&1
-    sysctl -w "net.ipv6.conf.default.disable_ipv6=$value" >/dev/null 2>&1
+    missing=0
 
     for item in "$PROC_IPV6_CONF"/*/disable_ipv6; do
-        [ -e "$item" ] || continue
+        [ -e "$item" ] || {
+            missing=$((missing + 1))
+            continue
+        }
+
         if write_value "$item" "$value"; then
-            count=$((count + 1))
+            changed=$((changed + 1))
         else
-            failed=$((failed + 1))
+            rc=$?
+            if [ "$rc" -eq 2 ]; then
+                missing=$((missing + 1))
+                echo "    [warn] vanished before write: $item"
+            else
+                failed=$((failed + 1))
+                echo "    [warn] interface write failed: $item"
+            fi
         fi
     done
 
-    echo "[+] IPv6 $label on $count interface(s)."
-    if [ "$failed" -gt 0 ]; then
-        echo "[!] Failed to update $failed interface(s)."
+    echo "    [info] interfaces changed=$changed failed=$failed vanished=$missing"
+}
+
+verify_ipv6_state() {
+    value="$1"
+    verify_failed=0
+    matched=0
+    mismatched=0
+    unreadable=0
+
+    all_path="$PROC_IPV6_CONF/all/disable_ipv6"
+    default_path="$PROC_IPV6_CONF/default/disable_ipv6"
+    all_value="$(cat "$all_path" 2>/dev/null)"
+    default_value="$(cat "$default_path" 2>/dev/null)"
+
+    echo "[*] Final verification"
+    echo "    [info] all=$all_value expected=$value"
+    echo "    [info] default=$default_value expected=$value"
+
+    if [ "$all_value" != "$value" ]; then
+        echo "    [error] all mismatch: $all_path"
+        verify_failed=1
+    fi
+
+    if [ "$default_value" != "$value" ]; then
+        echo "    [error] default mismatch: $default_path"
+        verify_failed=1
+    fi
+
+    for item in "$PROC_IPV6_CONF"/*/disable_ipv6; do
+        [ -e "$item" ] || continue
+        current="$(cat "$item" 2>/dev/null)"
+        if [ -z "$current" ]; then
+            unreadable=$((unreadable + 1))
+            echo "    [warn] unreadable: $item"
+        elif [ "$current" = "$value" ]; then
+            matched=$((matched + 1))
+        else
+            mismatched=$((mismatched + 1))
+            echo "    [warn] interface mismatch: $item is $current"
+        fi
+    done
+
+    echo "    [info] interface verify matched=$matched mismatched=$mismatched unreadable=$unreadable"
+    return "$verify_failed"
+}
+
+set_ipv6() {
+    value="$1"
+    label="$2"
+
+    require_root
+
+    if [ ! -d "$PROC_IPV6_CONF" ]; then
+        echo "[!] IPv6 procfs is unavailable: $PROC_IPV6_CONF"
         exit 2
     fi
+
+    echo "[*] Target: IPv6 $label (disable_ipv6=$value)"
+    pass=1
+    hard_failed=0
+
+    while [ "$pass" -le "$APPLY_PASSES" ]; do
+        echo "[*] Apply pass $pass/$APPLY_PASSES"
+        write_required_value "all" "$PROC_IPV6_CONF/all/disable_ipv6" "$value" || hard_failed=1
+        write_required_value "default" "$PROC_IPV6_CONF/default/disable_ipv6" "$value" || hard_failed=1
+        apply_interface_values "$value"
+
+        if [ "$pass" -lt "$APPLY_PASSES" ]; then
+            sleep_between_passes
+        fi
+        pass=$((pass + 1))
+    done
+
+    if verify_ipv6_state "$value"; then
+        if [ "$hard_failed" -eq 0 ]; then
+            echo "[+] Success: IPv6 $label verified."
+        else
+            echo "[+] Success with warnings: final state verified after earlier write warnings."
+        fi
+        return 0
+    fi
+
+    echo "[!] Hard failure: global/default IPv6 state did not verify."
+    exit 2
 }
 
 status_text() {

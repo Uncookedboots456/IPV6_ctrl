@@ -5,19 +5,24 @@ const output = document.querySelector("#output");
 const enableBtn = document.querySelector("#enableBtn");
 const disableBtn = document.querySelector("#disableBtn");
 const refreshBtn = document.querySelector("#refreshBtn");
-const onlineCheckBtn = document.querySelector("#onlineCheckBtn");
+const externalTestBtn = document.querySelector("#externalTestBtn");
 
 let ksuExec = null;
+let isRunning = false;
 
 function setBusy(isBusy) {
   enableBtn.disabled = isBusy;
   disableBtn.disabled = isBusy;
   refreshBtn.disabled = isBusy;
-  onlineCheckBtn.disabled = isBusy;
+  externalTestBtn.disabled = isBusy;
 }
 
 function writeTerminal(command, text) {
   output.textContent = `$ ${command}\n${text}`;
+}
+
+function appendTerminal(text) {
+  output.textContent = `${output.textContent}\n${text}`;
 }
 
 function setBadge(state, label) {
@@ -67,15 +72,56 @@ async function runShell(command) {
   return result;
 }
 
-async function refreshStatus() {
+function formatExecResult(result) {
+  const errno = result && typeof result.errno !== "undefined" ? result.errno : "unknown";
+  const stdout = (result && result.stdout ? result.stdout : "").trim();
+  const stderr = (result && result.stderr ? result.stderr : "").trim();
+  const parts = [`errno: ${errno}`];
+
+  if (stdout) {
+    parts.push(`stdout:\n${stdout}`);
+  }
+  if (stderr) {
+    parts.push(`stderr:\n${stderr}`);
+  }
+  return parts.join("\n");
+}
+
+function beginCommand(command) {
+  if (isRunning) {
+    appendTerminal("[info] Command already running; repeated tap ignored.");
+    return false;
+  }
+
+  isRunning = true;
   setBusy(true);
-  writeTerminal("ipv6_manager json-status", "Running...");
+  setBadge("running", "Running");
+  writeTerminal(command, "Running...");
+  return true;
+}
+
+function endCommand() {
+  isRunning = false;
+  setBusy(false);
+}
+
+async function refreshStatus() {
+  if (!beginCommand("ipv6_manager json-status")) {
+    return;
+  }
+
   try {
     const result = await runShell(`sh ${MODULE_SCRIPT} json-status`);
     if (result.errno !== 0) {
-      throw new Error(result.stderr || result.stdout || `errno ${result.errno}`);
+      throw new Error(formatExecResult(result));
     }
-    const data = JSON.parse(result.stdout || "{}");
+    const stdout = (result.stdout || "").trim();
+    let data;
+    try {
+      data = JSON.parse(stdout || "{}");
+    } catch (parseError) {
+      throw new Error(`Status JSON parse failed: ${parseError.message}\nraw:\n${stdout}`);
+    }
     if (!data.ok) {
       throw new Error(data.error || "status failed");
     }
@@ -84,55 +130,74 @@ async function refreshStatus() {
     setBadge("error", "Error");
     writeTerminal("ipv6_manager json-status", String(error.message || error));
   } finally {
-    setBusy(false);
+    endCommand();
   }
 }
 
 async function runAction(action) {
-  setBusy(true);
-  writeTerminal(`ipv6_manager ${action}`, "Running...");
+  if (!beginCommand(`ipv6_manager ${action}`)) {
+    return;
+  }
+
   try {
     const result = await runShell(`sh ${MODULE_SCRIPT} ${action}`);
-    const stdout = (result.stdout || "").trim();
-    const stderr = (result.stderr || "").trim();
     if (result.errno !== 0) {
-      throw new Error(stderr || stdout || `errno ${result.errno}`);
+      throw new Error(formatExecResult(result));
     }
-    writeTerminal(`ipv6_manager ${action}`, stdout || "Done.");
-    await refreshStatus();
+
+    writeTerminal(`ipv6_manager ${action}`, formatExecResult(result));
+
+    const statusResult = await runShell(`sh ${MODULE_SCRIPT} json-status`);
+    if (statusResult.errno !== 0) {
+      appendTerminal(`\n[warn] Status refresh failed after ${action}:\n${formatExecResult(statusResult)}`);
+      return;
+    }
+
+    try {
+      const data = JSON.parse((statusResult.stdout || "").trim() || "{}");
+      if (data.ok) {
+        const state = data.state || "unknown";
+        const rows = Array.isArray(data.interfaces) ? data.interfaces.length : 0;
+        setBadge(state, state === "enabled" ? "Enabled" : state === "disabled" ? "Disabled" : "Unknown");
+        appendTerminal(`\n[status] IPv6: ${state}; kernel entries: ${rows}`);
+      } else {
+        appendTerminal(`\n[warn] Status refresh returned error: ${data.error || "unknown"}`);
+      }
+    } catch (parseError) {
+      appendTerminal(`\n[warn] Status JSON parse failed: ${parseError.message}\nraw:\n${statusResult.stdout || ""}`);
+    }
   } catch (error) {
     setBadge("error", "Error");
     writeTerminal(`ipv6_manager ${action}`, String(error.message || error));
   } finally {
-    setBusy(false);
+    endCommand();
   }
 }
 
-async function runOnlineCheck() {
-  setBusy(true);
-  writeTerminal("ipv6_manager json-online-check", "Running...");
+async function openExternalTest() {
+  if (!beginCommand("open test-ipv6.com")) {
+    return;
+  }
+
   try {
-    const result = await runShell(`sh ${MODULE_SCRIPT} json-online-check`);
-    const stdout = (result.stdout || "").trim();
-    const stderr = (result.stderr || "").trim();
-    if (result.errno !== 0 && !stdout) {
-      throw new Error(stderr || `errno ${result.errno}`);
+    const url = "https://test-ipv6.com/";
+    const result = await runShell(`am start -a android.intent.action.VIEW -d ${url}`);
+    if (result.errno !== 0) {
+      throw new Error(`${formatExecResult(result)}\nOpen manually: ${url}`);
     }
-    const data = JSON.parse(stdout || "{}");
-    if (!data.ok) {
-      throw new Error(data.error || stderr || "online check failed");
-    }
-    writeTerminal("ipv6_manager online-check", data.output || JSON.stringify(data));
+    setBadge("pending", "Ready");
+    writeTerminal("open test-ipv6.com", formatExecResult(result) || `Opened: ${url}`);
   } catch (error) {
-    writeTerminal("ipv6_manager online-check", String(error.message || error));
+    setBadge("error", "Error");
+    writeTerminal("open test-ipv6.com", String(error.message || error));
   } finally {
-    setBusy(false);
+    endCommand();
   }
 }
 
 enableBtn.addEventListener("click", () => runAction("enable"));
 disableBtn.addEventListener("click", () => runAction("disable"));
 refreshBtn.addEventListener("click", refreshStatus);
-onlineCheckBtn.addEventListener("click", runOnlineCheck);
+externalTestBtn.addEventListener("click", openExternalTest);
 
 loadKernelSU();

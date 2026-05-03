@@ -4,7 +4,7 @@
 
 ### 简介
 
-IPV6 Ctrl 是一个面向 Android Root 设备的轻量 IPv6 控制工具，用于手动开启、关闭和检查 IPv6 状态。它只修改运行时 `/proc/sys/net/ipv6/conf` 参数，重启后通常会恢复。
+IPV6 Ctrl 是一个面向 Android Root 设备的轻量 IPv6 控制工具，用于手动开启、关闭和检查 IPv6 状态。它通过多轮写入和最终校验修改运行时 `/proc/sys/net/ipv6/conf` 参数，重启后通常会恢复。
 
 许可证：GPL-3.0-only。详见 `LICENSE`。
 
@@ -38,7 +38,7 @@ sh scripts/ipv6_manager.sh enable
 
 ### WebUI 使用
 
-KernelSU：在 KernelSU Manager 中打开模块 WebUI。
+KernelSU：在 KernelSU Manager 中打开模块 WebUI。WebUI 提供手动启用、禁用、刷新状态，以及通过系统浏览器打开 `test-ipv6.com` 的外部测试入口。
 
 CLI fallback：
 
@@ -52,6 +52,7 @@ sh scripts/ipv6_manager.sh online-check
 ### 注意事项
 
 - CLI 命令必须在 Root 环境下运行。
+- 启用/禁用会执行多轮 apply，并在结束时校验 `all`、`default` 和接口状态。
 - 在线检查命令为 `sh scripts/ipv6_manager.sh online-check`，会尝试 ipify、SeeIP、icanhazip。
 - 模块包根目录必须包含 `module.prop`，否则模块管理器可能提示 archive 内文件缺失。
 - `scripts/ipv6_webui_server.sh` 已在项目中弃用。
@@ -60,7 +61,7 @@ sh scripts/ipv6_manager.sh online-check
 
 ### Overview
 
-IPV6 Ctrl is a lightweight IPv6 control tool for rooted Android devices. It manually enables, disables, and checks IPv6 by changing runtime `/proc/sys/net/ipv6/conf` values. Changes usually reset after reboot.
+IPV6 Ctrl is a lightweight IPv6 control tool for rooted Android devices. It manually enables, disables, and checks IPv6 by changing runtime `/proc/sys/net/ipv6/conf` values with multi-pass apply and final verification. Changes usually reset after reboot.
 
 License: GPL-3.0-only. See `LICENSE`.
 
@@ -94,7 +95,7 @@ sh scripts/ipv6_manager.sh enable
 
 ### WebUI Usage
 
-KernelSU: open the module WebUI from KernelSU Manager.
+KernelSU: open the module WebUI from KernelSU Manager. The WebUI provides manual enable, disable, status refresh, and an external `test-ipv6.com` test entry opened through the Android browser.
 
 CLI fallback:
 
@@ -108,6 +109,7 @@ This release uses KernelSU `webroot` as the primary UI path. The old local port-
 ### Notes
 
 - The CLI commands must run as root.
+- Enable/disable runs multi-pass apply, then verifies `all`, `default`, and interface states.
 - Online check command: `sh scripts/ipv6_manager.sh online-check`, with fallback across ipify, SeeIP, and icanhazip.
 - A flashable module zip must include `module.prop` at archive root, or module managers may report a missing file in archive.
 - `scripts/ipv6_webui_server.sh` is deprecated in the project.
