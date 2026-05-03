@@ -1,6 +1,6 @@
 id=ipv6_ctrl
 name=IPV6 Ctrl
-version=0.1
-versionCode=1
+version=0.1.1
+versionCode=2
 author=Uncookedboots456
 description=Manual IPv6 enable/disable/status control with a lightweight local WebUI for rooted Android devices.
