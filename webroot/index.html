@@ -11,10 +11,10 @@
       <section class="panel">
         <div class="topbar">
           <div>
-            <p class="eyebrow">Android Root Network Control</p>
+            <p class="eyebrow">KernelSU Module WebUI</p>
             <h1>Network Stack Switch</h1>
           </div>
-          <div id="stateBadge" class="badge pending">Checking</div>
+          <div id="stateBadge" class="badge pending">Ready</div>
         </div>
 
         <div class="actions" aria-label="IPv6 controls">
@@ -23,8 +23,8 @@
           <button id="refreshBtn" type="button">Refresh Status</button>
         </div>
 
-        <pre id="output" class="terminal" aria-live="polite">$ ipv6_manager status
-Waiting for manual action...</pre>
+        <pre id="output" class="terminal" aria-live="polite">$ ipv6_manager json-status
+KernelSU WebUI ready.</pre>
 
         <div class="checkPanel">
           <h2>External IPv6 Tests</h2>
@@ -40,6 +40,6 @@ Waiting for manual action...</pre>
         </div>
       </section>
     </main>
-    <script src="app.js"></script>
+    <script type="module" src="app.js"></script>
   </body>
 </html>

@@ -1,7 +1,7 @@
 #!/system/bin/sh
 
 # Android IPv6 control helper.
-# Usage: sh ipv6_manager.sh [disable|enable|status|json-status]
+# Usage: sh ipv6_manager.sh [disable|enable|status|json-status|online-check|json-online-check]
 
 PROC_IPV6_CONF="/proc/sys/net/ipv6/conf"
 
@@ -22,6 +22,30 @@ write_value() {
     fi
 
     return 1
+}
+
+fetch_url() {
+    url="$1"
+
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL --connect-timeout 5 --max-time 10 "$url" 2>/dev/null
+        return $?
+    fi
+
+    if command -v wget >/dev/null 2>&1; then
+        wget -qO- "$url" 2>/dev/null
+        return $?
+    fi
+
+    return 127
+}
+
+extract_ip() {
+    printf '%s' "$1" | sed -n 's/.*"ip"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1
+}
+
+json_escape() {
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
 set_ipv6() {
@@ -112,6 +136,68 @@ json_status() {
     printf ']}\n'
 }
 
+online_check_text() {
+    if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
+        echo "[!] No HTTP client found. Install curl or wget to run online IPv6 checks."
+        exit 127
+    fi
+
+    response="$(fetch_url "https://api6.ipify.org?format=json")"
+    ip="$(extract_ip "$response")"
+    if [ -n "$ip" ]; then
+        echo "[+] Online IPv6 check passed via ipify: $ip"
+        return
+    fi
+
+    response="$(fetch_url "https://ipv6.seeip.org/jsonip")"
+    ip="$(extract_ip "$response")"
+    if [ -n "$ip" ]; then
+        echo "[+] Online IPv6 check passed via SeeIP: $ip"
+        return
+    fi
+
+    response="$(fetch_url "https://ipv6.icanhazip.com/")"
+    ip="$(printf '%s' "$response" | tr -d '\r\n' | sed -n '/:/p' | head -n 1)"
+    if [ -n "$ip" ]; then
+        echo "[+] Online IPv6 check passed via icanhazip: $ip"
+        return
+    fi
+
+    echo "[!] Online IPv6 check failed across ipify, SeeIP, and icanhazip."
+    exit 2
+}
+
+json_online_check() {
+    if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
+        printf '{"ok":false,"error":"No HTTP client found. Install curl or wget to run online IPv6 checks."}\n'
+        exit 127
+    fi
+
+    response="$(fetch_url "https://api6.ipify.org?format=json")"
+    ip="$(extract_ip "$response")"
+    if [ -n "$ip" ]; then
+        printf '{"ok":true,"provider":"ipify","ipv6":"%s","output":"%s"}\n' "$ip" "$(json_escape "Online IPv6 check passed via ipify: $ip")"
+        return
+    fi
+
+    response="$(fetch_url "https://ipv6.seeip.org/jsonip")"
+    ip="$(extract_ip "$response")"
+    if [ -n "$ip" ]; then
+        printf '{"ok":true,"provider":"SeeIP","ipv6":"%s","output":"%s"}\n' "$ip" "$(json_escape "Online IPv6 check passed via SeeIP: $ip")"
+        return
+    fi
+
+    response="$(fetch_url "https://ipv6.icanhazip.com/")"
+    ip="$(printf '%s' "$response" | tr -d '\r\n' | sed -n '/:/p' | head -n 1)"
+    if [ -n "$ip" ]; then
+        printf '{"ok":true,"provider":"icanhazip","ipv6":"%s","output":"%s"}\n' "$ip" "$(json_escape "Online IPv6 check passed via icanhazip: $ip")"
+        return
+    fi
+
+    printf '{"ok":false,"error":"Online IPv6 check failed across ipify, SeeIP, and icanhazip."}\n'
+    exit 2
+}
+
 case "$1" in
     disable|-d|off)
         set_ipv6 1 "disabled"
@@ -125,8 +211,14 @@ case "$1" in
     json-status|json)
         json_status
         ;;
+    online-check|online)
+        online_check_text
+        ;;
+    json-online-check|json-online)
+        json_online_check
+        ;;
     *)
-        echo "Usage: $0 {disable|enable|status|json-status}"
+        echo "Usage: $0 {disable|enable|status|json-status|online-check|json-online-check}"
         exit 1
         ;;
 esac
