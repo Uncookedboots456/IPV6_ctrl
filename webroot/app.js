@@ -33,10 +33,14 @@ function setBadge(state, label) {
 function renderStatus(data) {
   const state = data.state || "unknown";
   const label = state === "enabled" ? "Enabled" : state === "disabled" ? "Disabled" : "Unknown";
-  const rows = Array.isArray(data.interfaces) ? data.interfaces.length : 0;
+  const target = data.target || state;
+  const enforced = data.target_enforced === true;
 
   setBadge(state, label);
-  writeTerminal("ipv6_manager json-status", `IPv6: ${state}\nKernel entries: ${rows}`);
+  writeTerminal(
+    "ipv6_manager json-status",
+    `IPv6: ${state}\nTarget: ${target}\nTarget enforced: ${enforced ? "yes" : "no"}`
+  );
 }
 
 async function loadKernelSU() {
@@ -145,7 +149,21 @@ async function runAction(action) {
       throw new Error(formatExecResult(result));
     }
 
-    writeTerminal(`ipv6_manager ${action}`, formatExecResult(result));
+    const stdout = (result.stdout || "").trim();
+    let actionData;
+    try {
+      actionData = JSON.parse(stdout || "{}");
+    } catch (parseError) {
+      throw new Error(`Action JSON parse failed: ${parseError.message}\nraw:\n${stdout}`);
+    }
+    if (!actionData.ok) {
+      throw new Error(actionData.error || `${action} failed`);
+    }
+
+    writeTerminal(
+      `ipv6_manager ${action}`,
+      `IPv6: ${actionData.state || "unknown"}\nTarget enforced: ${actionData.target_enforced ? "yes" : "no"}`
+    );
 
     const statusResult = await runShell(`sh ${MODULE_SCRIPT} json-status`);
     if (statusResult.errno !== 0) {
@@ -157,9 +175,10 @@ async function runAction(action) {
       const data = JSON.parse((statusResult.stdout || "").trim() || "{}");
       if (data.ok) {
         const state = data.state || "unknown";
-        const rows = Array.isArray(data.interfaces) ? data.interfaces.length : 0;
         setBadge(state, state === "enabled" ? "Enabled" : state === "disabled" ? "Disabled" : "Unknown");
-        appendTerminal(`\n[status] IPv6: ${state}; kernel entries: ${rows}`);
+        appendTerminal(
+          `\n[status] IPv6: ${state}; target: ${data.target || state}; enforced: ${data.target_enforced ? "yes" : "no"}`
+        );
       } else {
         appendTerminal(`\n[warn] Status refresh returned error: ${data.error || "unknown"}`);
       }

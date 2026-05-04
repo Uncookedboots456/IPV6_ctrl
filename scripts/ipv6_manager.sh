@@ -3,14 +3,118 @@
 # Android IPv6 control helper.
 # Usage: sh ipv6_manager.sh [disable|enable|status|json-status|online-check|json-online-check]
 
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+MODDIR="$(dirname "$SCRIPT_DIR")"
 PROC_IPV6_CONF="/proc/sys/net/ipv6/conf"
 APPLY_PASSES="${APPLY_PASSES:-3}"
+DAEMON_BIN="$MODDIR/ipv6_daemon"
+DAEMON_SOCK="$MODDIR/ipv6_daemon.sock"
+DAEMON_NC=""
 
 require_root() {
     if [ "$(id -u)" -ne 0 ]; then
         echo "[!] Root permission is required."
         exit 1
     fi
+}
+
+find_daemon_nc() {
+    if [ -n "$DAEMON_NC" ]; then
+        return 0
+    fi
+
+    if command -v nc >/dev/null 2>&1; then
+        DAEMON_NC="nc"
+        return 0
+    fi
+
+    if command -v toybox >/dev/null 2>&1 && toybox nc -h >/dev/null 2>&1; then
+        DAEMON_NC="toybox"
+        return 0
+    fi
+
+    if command -v busybox >/dev/null 2>&1 && busybox nc --help >/dev/null 2>&1; then
+        DAEMON_NC="busybox"
+        return 0
+    fi
+
+    return 1
+}
+
+run_daemon_nc() {
+    case "$DAEMON_NC" in
+        nc)
+            nc -U "$DAEMON_SOCK"
+            ;;
+        toybox)
+            toybox nc -U "$DAEMON_SOCK"
+            ;;
+        busybox)
+            busybox nc -U "$DAEMON_SOCK"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+daemon_sleep() {
+    sleep 0.2 2>/dev/null || sleep 1
+}
+
+start_daemon() {
+    [ -x "$DAEMON_BIN" ] || return 1
+
+    chmod 0755 "$DAEMON_BIN" 2>/dev/null
+    "$DAEMON_BIN" >/dev/null 2>&1 &
+
+    tries=0
+    while [ "$tries" -lt 10 ]; do
+        [ -S "$DAEMON_SOCK" ] && return 0
+        daemon_sleep
+        tries=$((tries + 1))
+    done
+
+    return 1
+}
+
+ensure_daemon() {
+    require_root
+
+    [ -x "$DAEMON_BIN" ] || return 1
+    find_daemon_nc || return 1
+
+    [ -S "$DAEMON_SOCK" ] || start_daemon || return 1
+    return 0
+}
+
+daemon_request() {
+    command="$1"
+
+    ensure_daemon || return 1
+
+    response="$(printf '%s\n' "$command" | run_daemon_nc 2>/dev/null)"
+    if [ -n "$response" ]; then
+        printf '%s\n' "$response"
+        return 0
+    fi
+
+    rm -f "$DAEMON_SOCK" 2>/dev/null
+    start_daemon || return 1
+    response="$(printf '%s\n' "$command" | run_daemon_nc 2>/dev/null)"
+    [ -n "$response" ] || return 1
+    printf '%s\n' "$response"
+    return 0
+}
+
+extract_json_field() {
+    key="$1"
+    printf '%s' "$2" | sed -n "s/.*\"$key\":\"\\([^\"]*\\)\".*/\\1/p" | head -n 1
+}
+
+extract_json_bool() {
+    key="$1"
+    printf '%s' "$2" | sed -n "s/.*\"$key\":\\(true\\|false\\).*/\\1/p" | head -n 1
 }
 
 write_value() {
@@ -148,7 +252,7 @@ verify_ipv6_state() {
     return "$verify_failed"
 }
 
-set_ipv6() {
+set_ipv6_fallback() {
     value="$1"
     label="$2"
 
@@ -189,6 +293,19 @@ set_ipv6() {
 }
 
 status_text() {
+    if json="$(daemon_request "GET_STATUS")"; then
+        state="$(extract_json_field "state" "$json")"
+        target="$(extract_json_field "target" "$json")"
+        enforced="$(extract_json_bool "target_enforced" "$json")"
+        [ -n "$state" ] || state="unknown"
+        [ -n "$target" ] || target="$state"
+        [ -n "$enforced" ] || enforced="false"
+        echo "[i] IPv6 is $state."
+        echo " - target: $target"
+        echo " - target_enforced: $enforced"
+        return 0
+    fi
+
     if [ ! -r "$PROC_IPV6_CONF/all/disable_ipv6" ]; then
         echo "[!] IPv6 procfs status is unavailable."
         exit 2
@@ -215,6 +332,11 @@ status_text() {
 }
 
 json_status() {
+    if json="$(daemon_request "GET_STATUS")"; then
+        printf '%s\n' "$json"
+        return 0
+    fi
+
     if [ ! -r "$PROC_IPV6_CONF/all/disable_ipv6" ]; then
         printf '{"ok":false,"error":"IPv6 procfs status is unavailable"}\n'
         exit 2
@@ -247,6 +369,23 @@ json_status() {
         printf '{"name":"%s","state":"%s"}' "$iface" "$iface_state"
     done
     printf ']}\n'
+}
+
+daemon_action() {
+    action="$1"
+    if json="$(daemon_request "$action")"; then
+        printf '%s\n' "$json"
+        return 0
+    fi
+
+    if [ "$action" = "ENABLE" ]; then
+        set_ipv6_fallback 0 "enabled"
+        json_status
+        return 0
+    fi
+
+    set_ipv6_fallback 1 "disabled"
+    json_status
 }
 
 online_check_text() {
@@ -313,10 +452,10 @@ json_online_check() {
 
 case "$1" in
     disable|-d|off)
-        set_ipv6 1 "disabled"
+        daemon_action "DISABLE"
         ;;
     enable|-e|on)
-        set_ipv6 0 "enabled"
+        daemon_action "ENABLE"
         ;;
     status|-s)
         status_text
