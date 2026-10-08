@@ -3,3 +3,5 @@ Thumbs.db
 *.log
 *.zip
 PROJECT_SUMMARY.md
+__pycache__/
+*.py[cod]
