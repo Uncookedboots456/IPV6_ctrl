@@ -72,7 +72,7 @@ rm /data/adb/ipv6_ctrl_trial/snapshot
 在 Linux/WSL 下从 `IPV6_ctrl` 运行：
 
 ```sh
-python3 tests/test_ipv6_trial.py
+python3 -m unittest discover -s tests -v
 ```
 
 测试把 procfs、网络接口和快照路径替换到临时目录，验证修改范围、恢复、失败回滚、daemon 冲突及重建接口保护，不接触宿主真实网络。证据来自这些模拟测试；结论限于脚本逻辑。实际路径是“记录基线 → 单接口写入 → 人工业务验证 → 恢复 → 对照”，Android shell/SELinux 和微信实机表现仍需上述手动验收。
