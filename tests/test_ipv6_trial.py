@@ -26,14 +26,15 @@ class TrialTests(unittest.TestCase):
             (self.net / name).mkdir(parents=True)
             (self.net / name / "ifindex").write_text(f"{index}\n")
         source = SCRIPT.read_text()
-        for old, new in (
+        rewrites = (
             ("PROC_CONF=/proc/sys/net/ipv6/conf", f"PROC_CONF='{self.conf}'"),
             ("NET_CLASS=/sys/class/net", f"NET_CLASS='{self.net}'"),
             ("BOOT_ID_FILE=/proc/sys/kernel/random/boot_id", f"BOOT_ID_FILE='{self.boot}'"),
             ("STATE_DIR=/data/adb/ipv6_ctrl_trial", f"STATE_DIR='{self.state}'"),
-        ):
-            assert old in source
-            source = source.replace(old, new)
+        )
+        for old, new in rewrites:
+            self.assertEqual(source.count(old), 1, f"Expected one test path to replace: {old}")
+            source = source.replace(old, new, 1)
         self.script = self.root / "trial.sh"
         self.script.write_text(source)
         self.bin = self.root / "bin"
@@ -66,6 +67,23 @@ class TrialTests(unittest.TestCase):
         self.assertIn("wlan0", result.stdout)
         self.assertEqual(self.values(), before)
         self.assertFalse(self.state.exists())
+
+    def test_invalid_arguments_fail_without_changes(self):
+        before = self.values()
+        invalid_args = (
+            (),
+            ("unknown",),
+            ("status", "extra"),
+            ("disable",),
+            ("disable", "wlan0", "extra"),
+            ("restore", "extra"),
+        )
+        for args in invalid_args:
+            with self.subTest(args=args):
+                result = self.run_trial(*args)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertEqual(self.values(), before)
+                self.assertFalse(self.state.exists())
 
     def test_only_selected_interface_changes_and_restore_is_exact(self):
         before = self.values()
@@ -156,6 +174,24 @@ fi
         self.assertIn("recreated", result.stderr)
         self.assertEqual(self.node("wlan0").read_text(), "1\n")
         self.assertTrue((self.state / "snapshot").exists())
+
+    def test_malformed_snapshot_refuses_restore_without_changes(self):
+        before = self.values()
+        self.state.mkdir()
+        snapshot = self.state / "snapshot"
+        for record in (
+            "test-boot ../wlan0 4 0\n",
+            "test-boot wlan0 nope 0\n",
+            "test-boot wlan0 4 unknown\n",
+            "test-boot wlan0 4 0 extra\n",
+        ):
+            with self.subTest(record=record):
+                snapshot.write_text(record)
+                result = self.run_trial("restore")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(self.values(), before)
+                self.assertEqual(snapshot.read_text(), record)
+                self.assertFalse((self.state / "lock").exists())
 
     def test_unavailable_interface_retains_recovery_snapshot(self):
         self.assertEqual(self.run_trial("disable", "wlan0").returncode, 0)
