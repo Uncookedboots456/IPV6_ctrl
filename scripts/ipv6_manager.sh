@@ -126,11 +126,7 @@ status_text() {
     fi
 
     global_status="$(cat "$PROC_IPV6_CONF/all/disable_ipv6" 2>/dev/null)"
-    if [ "$global_status" = "1" ]; then
-        echo "[i] IPv6 is disabled."
-    else
-        echo "[i] IPv6 is enabled."
-    fi
+    echo "[i] Global all/disable_ipv6=$global_status; inspect each interface below."
 
     for item in "$PROC_IPV6_CONF"/*/disable_ipv6; do
         [ -e "$item" ] || continue
@@ -148,7 +144,10 @@ status_text() {
 json_status() {
     if json="$(daemon_request "GET_STATUS")"; then
         printf '%s\n' "$json"
-        return 0
+        case "$json" in
+            '{"ok":true,'*) return 0 ;;
+            *) return 1 ;;
+        esac
     fi
 
     if [ ! -r "$PROC_IPV6_CONF/all/disable_ipv6" ]; then
@@ -163,6 +162,14 @@ json_status() {
         state="enabled"
     fi
 
+    for item in "$PROC_IPV6_CONF"/*/disable_ipv6; do
+        [ -e "$item" ] || continue
+        value="$(cat "$item" 2>/dev/null)"
+        case "$value" in
+            0|1) [ "$value" = "$global_status" ] || state=mixed ;;
+            *) printf '{"ok":false,"error":"Unreadable IPv6 interface state"}\n'; return 2 ;;
+        esac
+    done
     printf '{"ok":true,"state":"%s","target":"unmanaged","target_enforced":false,"interfaces":[' "$state"
     first=1
     for item in "$PROC_IPV6_CONF"/*/disable_ipv6; do

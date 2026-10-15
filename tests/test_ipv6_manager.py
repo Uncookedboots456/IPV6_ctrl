@@ -62,6 +62,16 @@ class ManagerTests(unittest.TestCase):
         self.assertEqual(data["target"], "unmanaged")
         self.assertFalse(marker.exists())
 
+    def test_read_only_status_reports_mixed_interfaces(self):
+        node = self.conf / "wlan0" / "disable_ipv6"
+        node.write_text("1\n")
+        result = self.run_manager("json-status")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data["state"], "mixed")
+        self.assertFalse(data["target_enforced"])
+        self.assertEqual(node.read_text(), "1\n")
+
     @unittest.skipUnless(shutil.which("cc"), "A Linux C compiler is required")
     def test_action_uses_module_socket_and_returns_json(self):
         client = self.bin / "nc"
