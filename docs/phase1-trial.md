@@ -2,7 +2,7 @@
 
 目标是先验证单次 IPv6 变更对微信等应用的影响。脚本只改手工指定的一个接口，保存原值，写入一次后退出。没有 daemon、自启、定时回写、LSPosed hook 或防火墙规则。
 
-**本阶段只推送 `scripts/ipv6_trial.sh`，不要安装旧模块包，也不要运行旧的 `ipv6_manager.sh` 或 `service.sh`：它们仍会启动 daemon。** 如果旧模块已启用，应先禁用旧模块并重启。试验脚本检测到 `ipv6_daemon` 会拒绝修改网络。
+**本阶段只推送 `scripts/ipv6_trial.sh`，不要安装模块包、运行 `service.sh`，或用 `ipv6_manager.sh enable/disable` 替代 trial：这些入口会启动全接口 daemon。** 如果旧模块已启用，应先禁用旧模块并重启。试验脚本检测到 `ipv6_daemon` 会拒绝修改网络。
 
 一次性脚本足以验证兼容性，但不保证持续禁用：Android 可能重新开启接口，新接口也不会自动被处理。发现恢复为 `0` 时只记录时间，不反复执行关闭命令。
 
