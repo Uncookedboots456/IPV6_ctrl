@@ -1,5 +1,7 @@
 # IPV6 Ctrl
 
+> 新版 LSPosed 模块与独立 Android 应用位于 [`android/`](android/README.md)，构建和使用方式见该目录。以下保留原 Root daemon / WebUI 版本说明；两者是不同运行方式。
+
 ## 中文
 
 ### 简介
