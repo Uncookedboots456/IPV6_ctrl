@@ -8,3 +8,8 @@ __pycache__/
 /agents.md
 /docs/agy-opus-retry-20261007.md
 /docs/opus55-network-review-raw.md
+**/.gradle/
+**/build/
+**/local.properties
+*.jks
+*.keystore

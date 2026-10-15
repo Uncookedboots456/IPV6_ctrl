@@ -1,0 +1,18 @@
+plugins {
+    id 'com.android.application' version '9.2.1' apply false
+}
+
+def policyChecks = tasks.register('compilePolicyChecks', JavaCompile) {
+    source 'app/src/main/java/dev/ipv6ctrl/AddressPolicy.java', 'tests/PolicyTest.java'
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('policy-checks')
+    sourceCompatibility = '17'
+    targetCompatibility = '17'
+    options.encoding = 'UTF-8'
+}
+tasks.register('policyTest', JavaExec) {
+    dependsOn policyChecks
+    classpath = files(policyChecks.flatMap { it.destinationDirectory })
+    mainClass = 'dev.ipv6ctrl.PolicyTest'
+    enableAssertions = true
+}

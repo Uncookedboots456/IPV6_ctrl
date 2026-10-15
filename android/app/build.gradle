@@ -1,0 +1,23 @@
+plugins { id 'com.android.application' }
+android {
+    namespace = 'dev.ipv6ctrl'
+    compileSdk = 37
+    buildToolsVersion = '36.0.0'
+    enableKotlin = false
+    defaultConfig {
+        applicationId = 'dev.ipv6ctrl'
+        minSdk = 28
+        targetSdk = 36
+        versionCode = 1
+        versionName = '0.1.0'
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    buildTypes { release { minifyEnabled = false } }
+}
+dependencies {
+    compileOnly 'io.github.libxposed:api:102.0.0'
+    implementation 'io.github.libxposed:service:102.0.0'
+}
