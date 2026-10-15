@@ -53,7 +53,7 @@ class TrialTests(unittest.TestCase):
 
     def run_trial(self, *args, **env):
         return subprocess.run(
-            ["sh", str(self.script), *args],
+            [os.environ.get("IPV6_TEST_SHELL", "sh"), str(self.script), *args],
             env=dict(self.env, **env), text=True, capture_output=True, timeout=3,
         )
 

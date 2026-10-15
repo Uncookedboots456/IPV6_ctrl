@@ -33,7 +33,9 @@ check_daemon() {
 
 lock_state() {
     [ ! -L "$STATE_DIR" ] || fail 'State directory must not be a symbolic link.'
-    mkdir -p "$STATE_DIR" && chmod 700 "$STATE_DIR" || fail 'Cannot create private state directory.'
+    if ! mkdir -p "$STATE_DIR" || ! chmod 700 "$STATE_DIR"; then
+        fail 'Cannot create private state directory.'
+    fi
     mkdir "$STATE_DIR/lock" 2>/dev/null || fail 'Another trial is running, or a stale lock needs inspection.'
     trap 'rmdir "$STATE_DIR/lock" 2>/dev/null' 0
     trap 'exit 130' INT
@@ -104,8 +106,10 @@ disable_once() {
     [ -n "$boot_id" ] || fail 'Boot ID is empty.'
     index=$(cat "$NET_CLASS/$trial_iface/ifindex" 2>/dev/null) || fail 'Cannot read interface index.'
     case "$index" in ''|*[!0-9]*) fail 'Invalid interface index.' ;; esac
-    printf '%s %s %s %s\n' "$boot_id" "$trial_iface" "$index" "$original" > "$SNAPSHOT.tmp" &&
-        mv "$SNAPSHOT.tmp" "$SNAPSHOT" || fail 'Cannot save original state; no change applied.'
+    if ! printf '%s %s %s %s\n' "$boot_id" "$trial_iface" "$index" "$original" > "$SNAPSHOT.tmp" ||
+        ! mv "$SNAPSHOT.tmp" "$SNAPSHOT"; then
+        fail 'Cannot save original state; no change applied.'
+    fi
     if printf '1\n' > "$trial_node" && [ "$(read_value "$trial_node")" = 1 ]; then
         printf 'Applied once to %s: disable_ipv6=1. No background enforcement.\n' "$trial_iface"
         printf 'Use status to observe changes; use restore to restore the saved value.\n'
