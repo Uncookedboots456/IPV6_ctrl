@@ -311,8 +311,6 @@ static int setup_socket(void)
     }
     (void)set_cloexec(fd);
 
-    unlink(socket_path);
-
     struct sockaddr_un addr;
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
@@ -321,6 +319,29 @@ static int setup_socket(void)
         return -1;
     }
     strcpy(addr.sun_path, socket_path);
+
+    struct stat existing;
+    if (lstat(socket_path, &existing) == 0) {
+        if (!S_ISSOCK(existing.st_mode) ||
+            connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0 ||
+            (errno != ECONNREFUSED && errno != ENOENT)) {
+            close(fd);
+            return -1;
+        }
+        close(fd);
+        fd = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (fd < 0) {
+            return -1;
+        }
+        (void)set_cloexec(fd);
+        if (unlink(socket_path) != 0 && errno != ENOENT) {
+            close(fd);
+            return -1;
+        }
+    } else if (errno != ENOENT) {
+        close(fd);
+        return -1;
+    }
 
     if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
         close(fd);

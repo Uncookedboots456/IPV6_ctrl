@@ -79,6 +79,21 @@ class DaemonTests(unittest.TestCase):
         self.assertLess(time.monotonic() - start, 1)
         self.assertEqual({p: p.stat().st_mtime_ns for p in written}, written)
 
+    def test_existing_file_and_legacy_listener_are_preserved(self):
+        other_path = self.root / "other.sock"
+        other_path.write_text("keep this file")
+        result = subprocess.run([str(self.binary), str(other_path)], timeout=3)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(other_path.read_text(), "keep this file")
+        other_path.unlink()
+        with socket.socket(socket.AF_UNIX) as listener:
+            listener.bind(str(other_path))
+            listener.listen(1)
+            inode = other_path.stat().st_ino
+            result = subprocess.run([str(self.binary), str(other_path)], timeout=3)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(other_path.stat().st_ino, inode)
+
     def test_idle_client_is_bounded(self):
         with socket.socket(socket.AF_UNIX) as idle:
             idle.connect(str(self.sock))
