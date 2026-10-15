@@ -5,3 +5,4 @@ Thumbs.db
 PROJECT_SUMMARY.md
 __pycache__/
 *.py[cod]
+/agents.md
