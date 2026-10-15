@@ -3,108 +3,73 @@
 # Android IPv6 control helper.
 # Usage: sh ipv6_manager.sh [disable|enable|status|json-status|online-check|json-online-check]
 
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 MODDIR="$(dirname "$SCRIPT_DIR")"
 PROC_IPV6_CONF="/proc/sys/net/ipv6/conf"
-APPLY_PASSES="${APPLY_PASSES:-3}"
 DAEMON_BIN="$MODDIR/ipv6_daemon"
 DAEMON_SOCK="$MODDIR/ipv6_daemon.sock"
 DAEMON_NC=""
 
 require_root() {
     if [ "$(id -u)" -ne 0 ]; then
-        echo "[!] Root permission is required."
-        exit 1
+        echo "[!] Root permission is required." >&2
+        return 1
     fi
 }
 
 find_daemon_nc() {
-    if [ -n "$DAEMON_NC" ]; then
-        return 0
-    fi
-
+    command -v timeout >/dev/null 2>&1 || return 1
     if command -v nc >/dev/null 2>&1; then
-        DAEMON_NC="nc"
-        return 0
+        DAEMON_NC=nc
+    elif command -v toybox >/dev/null 2>&1; then
+        DAEMON_NC=toybox
+    elif command -v busybox >/dev/null 2>&1; then
+        DAEMON_NC=busybox
+    else
+        return 1
     fi
-
-    if command -v toybox >/dev/null 2>&1 && toybox nc -h >/dev/null 2>&1; then
-        DAEMON_NC="toybox"
-        return 0
-    fi
-
-    if command -v busybox >/dev/null 2>&1 && busybox nc --help >/dev/null 2>&1; then
-        DAEMON_NC="busybox"
-        return 0
-    fi
-
-    return 1
 }
 
 run_daemon_nc() {
     case "$DAEMON_NC" in
-        nc)
-            nc -U "$DAEMON_SOCK"
-            ;;
-        toybox)
-            toybox nc -U "$DAEMON_SOCK"
-            ;;
-        busybox)
-            busybox nc -U "$DAEMON_SOCK"
-            ;;
-        *)
-            return 1
-            ;;
+        nc) timeout 3 nc -U -w 2 "$DAEMON_SOCK" ;;
+        toybox) timeout 3 toybox nc -U -w 2 "$DAEMON_SOCK" ;;
+        busybox) timeout 3 busybox nc -U -w 2 "$DAEMON_SOCK" ;;
+        *) return 1 ;;
     esac
-}
-
-daemon_sleep() {
-    sleep 0.2 2>/dev/null || sleep 1
 }
 
 start_daemon() {
     [ -x "$DAEMON_BIN" ] || return 1
-
-    chmod 0755 "$DAEMON_BIN" 2>/dev/null
-    "$DAEMON_BIN" >/dev/null 2>&1 &
-
+    "$DAEMON_BIN" "$DAEMON_SOCK" >/dev/null 2>&1 &
     tries=0
     while [ "$tries" -lt 10 ]; do
         [ -S "$DAEMON_SOCK" ] && return 0
-        daemon_sleep
+        sleep 0.2
         tries=$((tries + 1))
     done
-
     return 1
-}
-
-ensure_daemon() {
-    require_root
-
-    [ -x "$DAEMON_BIN" ] || return 1
-    find_daemon_nc || return 1
-
-    [ -S "$DAEMON_SOCK" ] || start_daemon || return 1
-    return 0
 }
 
 daemon_request() {
     command="$1"
-
-    ensure_daemon || return 1
-
-    response="$(printf '%s\n' "$command" | run_daemon_nc 2>/dev/null)"
-    if [ -n "$response" ]; then
-        printf '%s\n' "$response"
-        return 0
+    require_root || return 1
+    find_daemon_nc || return 1
+    if [ ! -S "$DAEMON_SOCK" ]; then
+        [ "$command" != GET_STATUS ] || return 1
+        start_daemon || return 1
     fi
 
-    rm -f "$DAEMON_SOCK" 2>/dev/null
-    start_daemon || return 1
     response="$(printf '%s\n' "$command" | run_daemon_nc 2>/dev/null)"
-    [ -n "$response" ] || return 1
-    printf '%s\n' "$response"
-    return 0
+    if [ -z "$response" ] && [ "$command" != GET_STATUS ]; then
+        # The daemon owns socket cleanup under its lock; never unlink it here.
+        start_daemon || return 1
+        response="$(printf '%s\n' "$command" | run_daemon_nc 2>/dev/null)"
+    fi
+    case "$response" in
+        '{"ok":'*) printf '%s\n' "$response" ;;
+        *) return 1 ;;
+    esac
 }
 
 extract_json_field() {
@@ -114,26 +79,7 @@ extract_json_field() {
 
 extract_json_bool() {
     key="$1"
-    printf '%s' "$2" | sed -n "s/.*\"$key\":\\(true\\|false\\).*/\\1/p" | head -n 1
-}
-
-write_value() {
-    target="$1"
-    value="$2"
-
-    if [ ! -e "$target" ]; then
-        return 2
-    fi
-
-    if echo "$value" > "$target" 2>/dev/null; then
-        return $?
-    fi
-
-    return 1
-}
-
-sleep_between_passes() {
-    sleep 0.25 2>/dev/null || sleep 1
+    printf '%s' "$2" | sed -nE "s/.*\"$key\":(true|false).*/\\1/p" | head -n 1
 }
 
 fetch_url() {
@@ -158,138 +104,6 @@ extract_ip() {
 
 json_escape() {
     printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
-}
-
-write_required_value() {
-    label="$1"
-    target="$2"
-    value="$3"
-
-    if write_value "$target" "$value"; then
-        echo "    [ok] $label -> $value"
-        return 0
-    fi
-
-    rc=$?
-    if [ "$rc" -eq 2 ]; then
-        echo "    [error] $label missing: $target"
-    else
-        echo "    [error] $label write failed: $target"
-    fi
-    return 1
-}
-
-apply_interface_values() {
-    value="$1"
-    changed=0
-    failed=0
-    missing=0
-
-    for item in "$PROC_IPV6_CONF"/*/disable_ipv6; do
-        [ -e "$item" ] || {
-            missing=$((missing + 1))
-            continue
-        }
-
-        if write_value "$item" "$value"; then
-            changed=$((changed + 1))
-        else
-            rc=$?
-            if [ "$rc" -eq 2 ]; then
-                missing=$((missing + 1))
-                echo "    [warn] vanished before write: $item"
-            else
-                failed=$((failed + 1))
-                echo "    [warn] interface write failed: $item"
-            fi
-        fi
-    done
-
-    echo "    [info] interfaces changed=$changed failed=$failed vanished=$missing"
-}
-
-verify_ipv6_state() {
-    value="$1"
-    verify_failed=0
-    matched=0
-    mismatched=0
-    unreadable=0
-
-    all_path="$PROC_IPV6_CONF/all/disable_ipv6"
-    default_path="$PROC_IPV6_CONF/default/disable_ipv6"
-    all_value="$(cat "$all_path" 2>/dev/null)"
-    default_value="$(cat "$default_path" 2>/dev/null)"
-
-    echo "[*] Final verification"
-    echo "    [info] all=$all_value expected=$value"
-    echo "    [info] default=$default_value expected=$value"
-
-    if [ "$all_value" != "$value" ]; then
-        echo "    [error] all mismatch: $all_path"
-        verify_failed=1
-    fi
-
-    if [ "$default_value" != "$value" ]; then
-        echo "    [error] default mismatch: $default_path"
-        verify_failed=1
-    fi
-
-    for item in "$PROC_IPV6_CONF"/*/disable_ipv6; do
-        [ -e "$item" ] || continue
-        current="$(cat "$item" 2>/dev/null)"
-        if [ -z "$current" ]; then
-            unreadable=$((unreadable + 1))
-            echo "    [warn] unreadable: $item"
-        elif [ "$current" = "$value" ]; then
-            matched=$((matched + 1))
-        else
-            mismatched=$((mismatched + 1))
-            echo "    [warn] interface mismatch: $item is $current"
-        fi
-    done
-
-    echo "    [info] interface verify matched=$matched mismatched=$mismatched unreadable=$unreadable"
-    return "$verify_failed"
-}
-
-set_ipv6_fallback() {
-    value="$1"
-    label="$2"
-
-    require_root
-
-    if [ ! -d "$PROC_IPV6_CONF" ]; then
-        echo "[!] IPv6 procfs is unavailable: $PROC_IPV6_CONF"
-        exit 2
-    fi
-
-    echo "[*] Target: IPv6 $label (disable_ipv6=$value)"
-    pass=1
-    hard_failed=0
-
-    while [ "$pass" -le "$APPLY_PASSES" ]; do
-        echo "[*] Apply pass $pass/$APPLY_PASSES"
-        write_required_value "all" "$PROC_IPV6_CONF/all/disable_ipv6" "$value" || hard_failed=1
-        write_required_value "default" "$PROC_IPV6_CONF/default/disable_ipv6" "$value" || hard_failed=1
-        apply_interface_values "$value"
-
-        if [ "$pass" -lt "$APPLY_PASSES" ]; then
-            sleep_between_passes
-        fi
-        pass=$((pass + 1))
-    done
-
-    if verify_ipv6_state "$value"; then
-        if [ "$hard_failed" -eq 0 ]; then
-            echo "[+] Success: IPv6 $label verified."
-        else
-            echo "[+] Success with warnings: final state verified after earlier write warnings."
-        fi
-        return 0
-    fi
-
-    echo "[!] Hard failure: global/default IPv6 state did not verify."
-    exit 2
 }
 
 status_text() {
@@ -349,7 +163,7 @@ json_status() {
         state="enabled"
     fi
 
-    printf '{"ok":true,"state":"%s","interfaces":[' "$state"
+    printf '{"ok":true,"state":"%s","target":"unmanaged","target_enforced":false,"interfaces":[' "$state"
     first=1
     for item in "$PROC_IPV6_CONF"/*/disable_ipv6; do
         [ -e "$item" ] || continue
@@ -372,20 +186,15 @@ json_status() {
 }
 
 daemon_action() {
-    action="$1"
-    if json="$(daemon_request "$action")"; then
+    if json="$(daemon_request "$1")"; then
         printf '%s\n' "$json"
-        return 0
+        case "$json" in
+            '{"ok":true,'*) return 0 ;;
+            *) return 1 ;;
+        esac
     fi
-
-    if [ "$action" = "ENABLE" ]; then
-        set_ipv6_fallback 0 "enabled"
-        json_status
-        return 0
-    fi
-
-    set_ipv6_fallback 1 "disabled"
-    json_status
+    printf '{"ok":false,"error":"Daemon unavailable; no fallback network writes attempted"}\n'
+    return 1
 }
 
 online_check_text() {
