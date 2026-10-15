@@ -11,14 +11,17 @@
 #include <time.h>
 #include <unistd.h>
 #include <dirent.h>
-#include <sys/inotify.h>
+#include <sys/file.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <sys/un.h>
 
+#ifndef PROC_CONF_DIR
 #define PROC_CONF_DIR "/proc/sys/net/ipv6/conf"
+#endif
 #define PROC_ALL_PATH PROC_CONF_DIR "/all/disable_ipv6"
 #define PROC_DEFAULT_PATH PROC_CONF_DIR "/default/disable_ipv6"
 #define SOCKET_PATH "/data/adb/modules/ipv6_ctrl/ipv6_daemon.sock"
@@ -27,15 +30,14 @@
 #define JSON_MAX 192
 #define PATH_MAX_LOCAL 512
 #define SELECT_TIMEOUT_SEC 3
-#define RATE_WINDOW_SEC 1
-#define RATE_LIMIT_EVENTS 3
-#define COOLDOWN_SEC 4
 
 static int target_state = 0;
+static const char *socket_path = SOCKET_PATH;
+static volatile sig_atomic_t running = 1;
 
 static const char *state_name(int value)
 {
-    return value == 1 ? "disabled" : "enabled";
+    return value == 1 ? "disabled" : value == 0 ? "enabled" : "mixed";
 }
 
 static int set_cloexec(int fd)
@@ -70,6 +72,9 @@ static int read_state_file(const char *path)
 
 static int write_state_file(const char *path, int value)
 {
+    if (read_state_file(path) == value) {
+        return 0;
+    }
     char c = value == 1 ? '1' : '0';
     int fd = open(path, O_WRONLY | O_CLOEXEC);
     if (fd < 0) {
@@ -82,14 +87,14 @@ static int write_state_file(const char *path, int value)
     } while (n < 0 && errno == EINTR);
 
     close(fd);
-    return n == 1 ? 0 : -1;
+    return n == 1 && read_state_file(path) == value ? 0 : -1;
 }
 
 static int apply_all_interfaces(int value)
 {
     int hard_failed = 0;
 
-    /* Keep global/default writes first; the interface sweep may duplicate them. */
+    /* Preserve the legacy module's global scope; the trial script is separate. */
     if (write_state_file(PROC_ALL_PATH, value) != 0) {
         hard_failed = 1;
     }
@@ -106,17 +111,21 @@ static int apply_all_interfaces(int value)
     while ((entry = readdir(dir)) != NULL) {
         char path[PATH_MAX_LOCAL];
 
-        if (entry->d_name[0] == '.') {
+        if (entry->d_name[0] == '.' || strcmp(entry->d_name, "all") == 0 ||
+            strcmp(entry->d_name, "default") == 0) {
             continue;
         }
 
         int len = snprintf(path, sizeof(path), "%s/%s/disable_ipv6",
                            PROC_CONF_DIR, entry->d_name);
         if (len <= 0 || (size_t)len >= sizeof(path)) {
+            hard_failed = 1;
             continue;
         }
 
-        (void)write_state_file(path, value);
+        if (write_state_file(path, value) != 0) {
+            hard_failed = 1;
+        }
     }
 
     closedir(dir);
@@ -145,6 +154,9 @@ static void trim_command(char *s)
 }
 
 static void json_format(char *buf, size_t size, const char *fmt, ...)
+    __attribute__((format(printf, 3, 4)));
+
+static void json_format(char *buf, size_t size, const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
@@ -170,9 +182,45 @@ static void send_json(int fd, const char *json)
     }
 }
 
+static int actual_state(void)
+{
+    DIR *dir = opendir(PROC_CONF_DIR);
+    if (!dir) {
+        return -1;
+    }
+    int state = read_state_file(PROC_ALL_PATH);
+    int defaults = read_state_file(PROC_DEFAULT_PATH);
+    if (state < 0 || defaults < 0) {
+        closedir(dir);
+        return -1;
+    }
+    if (state != defaults) {
+        state = 2;
+    }
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_name[0] == '.') {
+            continue;
+        }
+        char path[PATH_MAX_LOCAL];
+        int len = snprintf(path, sizeof(path), "%s/%s/disable_ipv6",
+                           PROC_CONF_DIR, entry->d_name);
+        int value = len > 0 && (size_t)len < sizeof(path) ? read_state_file(path) : -1;
+        if (value < 0) {
+            state = -1;
+            break;
+        }
+        if (value != state) {
+            state = 2;
+        }
+    }
+    closedir(dir);
+    return state;
+}
+
 static void build_status_json(char *json, size_t size)
 {
-    int actual = read_state_file(PROC_ALL_PATH);
+    int actual = actual_state();
     if (actual < 0) {
         json_format(json, size, "{\"ok\":false,\"error\":\"procfs unavailable\"}\n");
         return;
@@ -200,11 +248,7 @@ static void handle_command(const char *cmd, char *json, size_t size)
             return;
         }
 
-        int actual = read_state_file(PROC_ALL_PATH);
-        json_format(json, size,
-                    "{\"ok\":true,\"state\":\"%s\",\"target_enforced\":%s}\n",
-                    state_name(target_state),
-                    actual == target_state ? "true" : "false");
+        build_status_json(json, size);
         return;
     }
 
@@ -223,15 +267,28 @@ static void handle_socket_client(int server_fd)
     }
     (void)set_cloexec(client_fd);
 
+    struct ucred peer;
+    socklen_t peer_size = sizeof(peer);
+    struct timeval limit = {.tv_sec = 1, .tv_usec = 0};
+    if (getsockopt(client_fd, SOL_SOCKET, SO_PEERCRED, &peer, &peer_size) != 0 ||
+        peer.uid != geteuid() ||
+        setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &limit, sizeof(limit)) != 0 ||
+        setsockopt(client_fd, SOL_SOCKET, SO_SNDTIMEO, &limit, sizeof(limit)) != 0) {
+        close(client_fd);
+        return;
+    }
+
     char cmd[CMD_MAX];
     ssize_t n;
     do {
         n = recv(client_fd, cmd, sizeof(cmd) - 1, 0);
-    } while (n < 0 && errno == EINTR);
+    } while (n < 0 && errno == EINTR && running);
 
     char json[JSON_MAX];
     if (n <= 0) {
         json_format(json, sizeof(json), "{\"ok\":false,\"error\":\"empty command\"}\n");
+    } else if (n == (ssize_t)sizeof(cmd) - 1 || memchr(cmd, '\0', (size_t)n)) {
+        json_format(json, sizeof(json), "{\"ok\":false,\"error\":\"invalid command\"}\n");
     } else {
         cmd[n] = '\0';
         trim_command(cmd);
@@ -254,191 +311,138 @@ static int setup_socket(void)
     }
     (void)set_cloexec(fd);
 
-    unlink(SOCKET_PATH);
-
     struct sockaddr_un addr;
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
-    if (strlen(SOCKET_PATH) >= sizeof(addr.sun_path)) {
+    if (strlen(socket_path) >= sizeof(addr.sun_path)) {
         close(fd);
         return -1;
     }
-    strcpy(addr.sun_path, SOCKET_PATH);
+    strcpy(addr.sun_path, socket_path);
+
+    struct stat existing;
+    if (lstat(socket_path, &existing) == 0) {
+        if (!S_ISSOCK(existing.st_mode) ||
+            connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == 0 ||
+            (errno != ECONNREFUSED && errno != ENOENT)) {
+            close(fd);
+            return -1;
+        }
+        close(fd);
+        fd = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (fd < 0) {
+            return -1;
+        }
+        (void)set_cloexec(fd);
+        if (unlink(socket_path) != 0 && errno != ENOENT) {
+            close(fd);
+            return -1;
+        }
+    } else if (errno != ENOENT) {
+        close(fd);
+        return -1;
+    }
 
     if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
         close(fd);
         return -1;
     }
 
-    (void)chmod(SOCKET_PATH, 0666);
-
-    if (listen(fd, 8) != 0) {
+    if (chmod(socket_path, 0600) != 0 || listen(fd, 8) != 0) {
         close(fd);
-        unlink(SOCKET_PATH);
+        unlink(socket_path);
         return -1;
     }
 
     return fd;
 }
 
-static int add_watch(int inotify_fd)
+static void stop_daemon(int signo)
 {
-    /* Only watch all/disable_ipv6; timeout polling covers missed interface churn. */
-    return inotify_add_watch(inotify_fd, PROC_ALL_PATH,
-                             IN_MODIFY | IN_CLOSE_WRITE | IN_ATTRIB |
-                             IN_DELETE_SELF | IN_MOVE_SELF);
+    (void)signo;
+    running = 0;
 }
 
-static bool drain_inotify(int fd)
+static time_t monotonic_seconds(void)
 {
-    char buf[sizeof(struct inotify_event) + 256];
-    bool needs_rewatch = false;
-
-    for (;;) {
-        ssize_t n = read(fd, buf, sizeof(buf));
-        if (n > 0) {
-            size_t off = 0;
-            while (off + sizeof(struct inotify_event) <= (size_t)n) {
-                struct inotify_event *ev = (struct inotify_event *)(buf + off);
-                if (ev->mask & (IN_IGNORED | IN_DELETE_SELF | IN_MOVE_SELF)) {
-                    needs_rewatch = true;
-                }
-                off += sizeof(struct inotify_event) + ev->len;
-            }
-            continue;
-        }
-        if (n < 0 && errno == EINTR) {
-            continue;
-        }
-        break;
-    }
-
-    return needs_rewatch;
-}
-
-static bool rate_limited(void)
-{
-    static time_t window_start = -1;
-    static int events = 0;
-
     struct timespec ts;
-    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
-        ts.tv_sec = time(NULL);
-    }
-
-    time_t now = ts.tv_sec;
-    if (window_start < 0 || now - window_start >= RATE_WINDOW_SEC) {
-        window_start = now;
-        events = 0;
-    }
-
-    events++;
-    if (events > RATE_LIMIT_EVENTS) {
-        /* Stubborn vendor netd loops should not pin a CPU core. */
-        sleep(COOLDOWN_SEC);
-        if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
-            window_start = ts.tv_sec;
-        } else {
-            window_start = time(NULL);
-        }
-        events = 0;
-        return true;
-    }
-
-    return false;
+    return clock_gettime(CLOCK_MONOTONIC, &ts) == 0 ? ts.tv_sec : time(NULL);
 }
 
-static void enforce_if_needed(void)
+int main(int argc, char **argv)
 {
-    /* Timeout path is intentionally cheap: read all first, sweep only on drift. */
-    int actual = read_state_file(PROC_ALL_PATH);
-    if (actual >= 0 && actual != target_state) {
-        (void)apply_all_interfaces(target_state);
+    if (argc > 2) {
+        return 2;
     }
-}
+    if (argc == 2) {
+        socket_path = argv[1];
+    }
 
-int main(void)
-{
-    signal(SIGPIPE, SIG_IGN);
-
-    int initial = read_state_file(PROC_ALL_PATH);
-    target_state = initial < 0 ? 0 : initial;
-
-    /* IPC owns all user-visible output; the daemon itself stays quiet. */
-    int server_fd = setup_socket();
-    if (server_fd < 0) {
+    /* Keep the lock inode: unlinking it would permit two owners of one path. */
+    char lock_path[PATH_MAX_LOCAL];
+    int len = snprintf(lock_path, sizeof(lock_path), "%s.lock", socket_path);
+    if (len <= 0 || (size_t)len >= sizeof(lock_path)) {
+        return 1;
+    }
+    umask(0077);
+    int lock_fd = open(lock_path, O_CREAT | O_RDWR | O_CLOEXEC, 0600);
+    if (lock_fd < 0) {
+        return 1;
+    }
+    if (flock(lock_fd, LOCK_EX | LOCK_NB) != 0) {
+        close(lock_fd);
         return 1;
     }
 
-    int inotify_fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
-    if (inotify_fd < 0) {
-        inotify_fd = inotify_init();
-        if (inotify_fd >= 0) {
-            (void)set_cloexec(inotify_fd);
-            int flags = fcntl(inotify_fd, F_GETFL);
-            if (flags >= 0) {
-                (void)fcntl(inotify_fd, F_SETFL, flags | O_NONBLOCK);
-            }
+    signal(SIGPIPE, SIG_IGN);
+    struct sigaction action;
+    memset(&action, 0, sizeof(action));
+    action.sa_handler = stop_daemon;
+    sigemptyset(&action.sa_mask);
+    if (sigaction(SIGTERM, &action, NULL) != 0 ||
+        sigaction(SIGINT, &action, NULL) != 0) {
+        close(lock_fd);
+        return 1;
+    }
+
+    int initial = read_state_file(PROC_ALL_PATH);
+    target_state = initial < 0 ? 0 : initial;
+    int server_fd = setup_socket();
+    if (server_fd < 0) {
+        close(lock_fd);
+        return 1;
+    }
+
+    /* ponytail: one bounded sweep every 3s avoids inotify feedback and cooldowns. */
+    time_t next_sweep = monotonic_seconds() + SELECT_TIMEOUT_SEC;
+    while (running) {
+        time_t now = monotonic_seconds();
+        if (now >= next_sweep) {
+            (void)apply_all_interfaces(target_state);
+            next_sweep = now + SELECT_TIMEOUT_SEC;
         }
-    }
 
-    int watch_fd = -1;
-    if (inotify_fd >= 0) {
-        watch_fd = add_watch(inotify_fd);
-    }
-
-    for (;;) {
         fd_set rfds;
         FD_ZERO(&rfds);
         FD_SET(server_fd, &rfds);
-
-        int max_fd = server_fd;
-        if (inotify_fd >= 0) {
-            FD_SET(inotify_fd, &rfds);
-            if (inotify_fd > max_fd) {
-                max_fd = inotify_fd;
-            }
-        }
-
-        struct timeval timeout;
-        timeout.tv_sec = SELECT_TIMEOUT_SEC;
-        timeout.tv_usec = 0;
-
-        int ready = select(max_fd + 1, &rfds, NULL, NULL, &timeout);
+        struct timeval timeout = {
+            .tv_sec = next_sweep - now,
+            .tv_usec = 0,
+        };
+        int ready = select(server_fd + 1, &rfds, NULL, NULL, &timeout);
         if (ready < 0) {
             if (errno == EINTR) {
                 continue;
             }
             break;
         }
-
-        if (ready == 0) {
-            enforce_if_needed();
-            continue;
-        }
-
-        if (FD_ISSET(server_fd, &rfds)) {
+        if (ready > 0 && running) {
             handle_socket_client(server_fd);
         }
-
-        if (inotify_fd >= 0 && FD_ISSET(inotify_fd, &rfds)) {
-            if (drain_inotify(inotify_fd)) {
-                watch_fd = -1;
-            }
-            if (!rate_limited()) {
-                (void)apply_all_interfaces(target_state);
-            }
-
-            if (watch_fd < 0) {
-                watch_fd = add_watch(inotify_fd);
-            }
-        }
     }
 
-    if (inotify_fd >= 0) {
-        close(inotify_fd);
-    }
     close(server_fd);
-    unlink(SOCKET_PATH);
-    return 1;
+    unlink(socket_path);
+    close(lock_fd);
+    return running ? 1 : 0;
 }

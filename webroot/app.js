@@ -9,6 +9,7 @@ const externalTestBtn = document.querySelector("#externalTestBtn");
 
 let ksuExec = null;
 let isRunning = false;
+let callbackId = 0;
 
 function setBusy(isBusy) {
   enableBtn.disabled = isBusy;
@@ -32,7 +33,7 @@ function setBadge(state, label) {
 
 function renderStatus(data) {
   const state = data.state || "unknown";
-  const label = state === "enabled" ? "Enabled" : state === "disabled" ? "Disabled" : "Unknown";
+  const label = state === "enabled" ? "Enabled" : state === "disabled" ? "Disabled" : state === "mixed" ? "Mixed" : "Unknown";
   const target = data.target || state;
   const enforced = data.target_enforced === true;
 
@@ -43,18 +44,38 @@ function renderStatus(data) {
   );
 }
 
-async function loadKernelSU() {
-  try {
-    const mod = await import("kernelsu");
-    if (typeof mod.exec === "function") {
-      ksuExec = mod.exec;
-      setBadge("pending", "Ready");
-      return true;
+function bridgeExec(command) {
+  return new Promise((resolve, reject) => {
+    const name = `ipv6_exec_${callbackId++}`;
+    const cleanup = () => {
+      clearTimeout(timer);
+      delete window[name];
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("KernelSU command timed out"));
+    }, 15000);
+    window[name] = (errno, stdout, stderr) => {
+      cleanup();
+      resolve({ errno, stdout, stderr });
+    };
+    try {
+      window.ksu.exec(command, "{}", name);
+    } catch (error) {
+      cleanup();
+      reject(error);
     }
-  } catch (error) {
-    ksuExec = null;
+  });
+}
+
+async function loadKernelSU() {
+  if (window.ksu && typeof window.ksu.exec === "function") {
+    ksuExec = bridgeExec;
+    setBadge("pending", "Ready");
+    return true;
   }
 
+  ksuExec = null;
   setBadge("error", "Preview");
   writeTerminal(
     "kernelsu",
@@ -175,7 +196,7 @@ async function runAction(action) {
       const data = JSON.parse((statusResult.stdout || "").trim() || "{}");
       if (data.ok) {
         const state = data.state || "unknown";
-        setBadge(state, state === "enabled" ? "Enabled" : state === "disabled" ? "Disabled" : "Unknown");
+        setBadge(state, state === "enabled" ? "Enabled" : state === "disabled" ? "Disabled" : state === "mixed" ? "Mixed" : "Unknown");
         appendTerminal(
           `\n[status] IPv6: ${state}; target: ${data.target || state}; enforced: ${data.target_enforced ? "yes" : "no"}`
         );

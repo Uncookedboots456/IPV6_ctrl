@@ -1,9 +1,6 @@
 #!/system/bin/sh
 
-SKIPMOUNT=true
-PROPFILE=false
-POSTFSDATA=false
-LATESTARTSERVICE=false
+[ "${ARCH:-}" = arm64 ] || abort "- IPV6 Ctrl currently supports arm64 only"
 
 ui_print "- Installing IPV6 Ctrl"
 ui_print "- KernelSU WebUI enabled; daemon boot service will be installed"

@@ -1,0 +1,33 @@
+name: Tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ipv6-trial:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install shell checks
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck mksh
+      - name: Compile daemon with warnings as errors
+        run: cc -Wall -Wextra -Werror -O2 daemon.c -o "$RUNNER_TEMP/ipv6-daemon-host"
+      - name: Check Android shell scripts
+        run: shellcheck -s sh scripts/*.sh service.sh customize.sh tests/android_smoke.sh
+      - name: Run isolated Python regressions
+        run: python3 -m unittest discover -s tests -v
+      - name: Check mksh compatibility
+        env:
+          IPV6_TEST_SHELL: mksh
+        run: |
+          python3 -m unittest discover -s tests -p test_ipv6_trial.py -v
+          python3 -m unittest discover -s tests -p test_ipv6_manager.py -v
+      - name: Check WebUI bridge
+        run: node --test tests/test_webui.js

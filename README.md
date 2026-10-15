@@ -1,10 +1,14 @@
 # IPV6 Ctrl
 
+当前先进行**无 daemon 的单接口一次性试验**，用于验证微信等应用的网络兼容性。实机使用 `scripts/ipv6_trial.sh`；模块启动入口仍会启用全接口 daemon。部署、恢复和 A/B/A 测试步骤见 [第一阶段试验说明](docs/phase1-trial.md)。
+
+daemon 的首轮稳定性重构与隔离测试见 [重构状态与构建说明](docs/refactor-status.md)。这不表示旧模块的全接口策略或微信业务已完成实机验收。
+
 ## 中文
 
 ### 简介
 
-IPV6 Ctrl 是一个面向 Android Root 设备的轻量 IPv6 控制工具，用于手动开启、关闭和检查 IPv6 状态。`v0.1.4` 起，模块使用常驻 `ipv6_daemon` 监听和回写运行时 `/proc/sys/net/ipv6/conf` 参数，避免厂商网络栈反复抢写。
+IPV6 Ctrl 是一个面向 Android Root 设备的轻量 IPv6 控制工具，用于手动开启、关闭和检查 IPv6 状态。`v0.1.4` 起，模块提供常驻 `ipv6_daemon`；本分支改为定时检查 `/proc/sys/net/ipv6/conf` 并仅回写差值。
 
 许可证：GPL-3.0-only。详见 `LICENSE`。
 
@@ -15,7 +19,7 @@ IPV6 Ctrl 是一个面向 Android Root 设备的轻量 IPv6 控制工具，用�
 - Magisk / KernelSU / APatch 模块管理器，或手动推送到设备目录
 - KernelSU WebUI 为当前主界面入口
 - 在线 IPv6 检查可选依赖 `curl` 或 `wget`
-- 守护进程控制依赖设备可用的 Unix socket `nc` 实现（`nc` / `toybox nc` / `busybox nc`）
+- 守护进程控制依赖支持 Unix socket 的 `nc` 实现及 `timeout`；随包二进制为 arm64、最低 API 30
 
 ### 部署
 
@@ -55,16 +59,15 @@ sh scripts/ipv6_manager.sh online-check
 ### 注意事项
 
 - CLI 命令必须在 Root 环境下运行。
-- `enable` / `disable` / `json-status` 默认走 daemon socket；daemon 不可用时脚本会回退到旧的多轮 apply。
+- `enable` / `disable` 通过 daemon socket 操作；daemon 不可用时返回 JSON 错误。状态查询不会启动 daemon，可回退到只读 procfs 状态。
 - 在线检查命令为 `sh scripts/ipv6_manager.sh online-check`，会尝试 ipify、SeeIP、icanhazip。
 - 模块包根目录必须包含 `module.prop`，否则模块管理器可能提示 archive 内文件缺失。
-- `scripts/ipv6_webui_server.sh` 已在项目中弃用。
 
 ## English
 
 ### Overview
 
-IPV6 Ctrl is a lightweight IPv6 control tool for rooted Android devices. Starting with `v0.1.4`, it uses a resident `ipv6_daemon` to watch and re-apply runtime `/proc/sys/net/ipv6/conf` values when vendor networking components try to override them.
+IPV6 Ctrl is a lightweight IPv6 control tool for rooted Android devices. Starting with `v0.1.4`, it provides a resident `ipv6_daemon`; this branch polls `/proc/sys/net/ipv6/conf` and only writes values that differ from its target.
 
 License: GPL-3.0-only. See `LICENSE`.
 
@@ -75,7 +78,7 @@ License: GPL-3.0-only. See `LICENSE`.
 - Magisk / KernelSU / APatch module manager, or manual push to a device directory
 - KernelSU WebUI is now the primary UI path
 - Online IPv6 check optionally requires `curl` or `wget`
-- Daemon control requires a Unix socket `nc` implementation on-device (`nc`, `toybox nc`, or `busybox nc`)
+- Daemon control requires a Unix socket capable `nc` and `timeout`; the bundled binary targets arm64, API 30 or later
 
 ### Install
 
@@ -115,7 +118,6 @@ This release uses KernelSU `webroot` as the primary UI path. The old local port-
 ### Notes
 
 - The CLI commands must run as root.
-- `enable`, `disable`, and `json-status` now prefer the daemon socket path; the old multi-pass shell logic remains as a fallback if the daemon is unavailable.
+- `enable` and `disable` use the daemon socket and return JSON errors if unavailable. Status queries never start the daemon and can read procfs directly.
 - Online check command: `sh scripts/ipv6_manager.sh online-check`, with fallback across ipify, SeeIP, and icanhazip.
 - A flashable module zip must include `module.prop` at archive root, or module managers may report a missing file in archive.
-- `scripts/ipv6_webui_server.sh` is deprecated in the project.
