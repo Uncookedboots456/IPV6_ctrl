@@ -93,8 +93,8 @@ public final class MainActivity extends Activity {
     }
     private Button button(String label, int id, boolean primary, Runnable action) {
         Button view = new Button(this);view.setText(label);view.setTextSize(14);view.setAllCaps(false);view.setMinHeight(dp(48));
-        view.setId(id);view.setTextColor(primary?Color.WHITE:blue);
-        view.setBackgroundTintList(ColorStateList.valueOf(primary?blue:surface));
+        view.setId(id);view.setTextColor(new ColorStateList(new int[][]{{-android.R.attr.state_enabled},{}},new int[]{muted,primary?Color.WHITE:blue}));
+        view.setBackgroundTintList(new ColorStateList(new int[][]{{-android.R.attr.state_enabled},{}},new int[]{line,primary?blue:surface}));
         view.setOnClickListener(v->action.run());return view;
     }
     private void section(String label) {
@@ -139,15 +139,17 @@ public final class MainActivity extends Activity {
         for(int i=0;i<3;i++){
             final int targetPage=i;LinearLayout item=new LinearLayout(this);item.setId(ids[i]);item.setOrientation(1);item.setGravity(Gravity.CENTER);item.setMinimumHeight(dp(64));
             if(page==i)item.setBackground(rounded(dark?0xff172554:0xffeff6ff,24));item.setContentDescription(names[i]);item.setOnClickListener(v->{page=targetPage;render();});
-            item.addView(new IconView(this,icons[i],page==i?blue:muted),new LinearLayout.LayoutParams(dp(24),dp(24)));item.addView(text(names[i],12,page==i?blue:muted,page==i));nav.addView(item,new LinearLayout.LayoutParams(0,-2,1));
+            item.addView(new IconView(this,icons[i],page==i?blue:muted),new LinearLayout.LayoutParams(dp(24),dp(24)));
+            TextView caption=text(names[i],12,page==i?blue:muted,page==i);caption.setGravity(Gravity.CENTER);item.addView(caption);nav.addView(item,new LinearLayout.LayoutParams(0,-2,1));
         }
         root.addView(nav);setContentView(root);root.requestApplyInsets();
     }
 
     private void overview() {
-        row("目标策略："+label(draft),dirty()?"有未保存变更":"配置已读取；新目标需重启进程",dirty()?purple:blue);
+        row("目标策略："+label(draft),dirty()?"有未保存变更":connected()?"配置已读取；新目标需重启进程":"等待框架读取配置",dirty()?purple:blue);
         row("模块结果",message,connected()?green:amber);
-        row("实际状态",probeSummary(),muted);
+        String probe=probeSummary();int newline=probe.indexOf('\n');
+        row("独立探针",newline<0?probe:probe.substring(0,newline)+" · 完整结果见诊断",muted);
         if(!connected()) {
             section("激活指引");note("1. 在 LSPosed 中启用 IPV6 Ctrl\n2. 勾选独立探针作为测试目标\n3. 重启目标应用，返回此处检查连接",muted);
             addButton(button("打开 LSPosed",View.NO_ID,true,this::openManager));

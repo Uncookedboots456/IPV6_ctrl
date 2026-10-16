@@ -40,4 +40,14 @@ Windows 使用 `gradlew.bat`。调试 APK 使用本机 Android 调试签名；�
 
 上表基于 AOSP 解析器；设备差异需实际核对。探针还必须显示 `api=102` 注入标记。未注入或未选为策略目标时，应保持系统行为。
 
+设备已经配置相应策略后，可用 Python 标准库重新启动探针并核对实际结果：
+
+```sh
+python tests/device_probe.py --mode SYSTEM
+python tests/device_probe.py --mode IPV4_FIRST
+python tests/device_probe.py --mode IPV4_ONLY
+```
+
+每次只执行与当前已保存策略相符的一条命令。`--unhooked` 检查未注入时的系统行为，`--unselected` 检查未被选作策略目标时的系统行为；脚本本身不会改模块配置。
+
 构建依赖仅 libxposed service 及其传递依赖；Xposed API 为 compileOnly。界面使用 Android 原生控件，统一线条图标的许可及依赖许可见 APK 的“开源许可”。

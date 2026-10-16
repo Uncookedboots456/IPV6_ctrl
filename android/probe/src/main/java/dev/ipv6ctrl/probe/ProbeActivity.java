@@ -3,7 +3,9 @@ package dev.ipv6ctrl.probe;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Build;
 import android.util.Log;
+import android.view.WindowInsets;
 import android.widget.TextView;
 import java.net.Inet4Address;
 import java.net.InetAddress;
@@ -18,7 +20,15 @@ public final class ProbeActivity extends Activity {
         super.onCreate(state);
         TextView text = new TextView(this);
         text.setTextSize(17);
-        text.setPadding(32,96,32,64);
+        int pad = (int)(16 * getResources().getDisplayMetrics().density);
+        text.setPadding(pad,pad,pad,pad);
+        if (Build.VERSION.SDK_INT >= 30) {
+            getWindow().setDecorFitsSystemWindows(false);
+            text.setOnApplyWindowInsetsListener((v,insets)->{
+                var bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());
+                v.setPadding(pad+bars.left,pad+bars.top,pad+bars.right,pad+bars.bottom);return insets;
+            });
+        }
         text.setText("IPV6 Ctrl 独立探针\n正在检测本机回环地址…");
         text.setTextIsSelectable(true);
         setContentView(text);
