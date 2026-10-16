@@ -1,6 +1,6 @@
 # IPV6 Ctrl
 
-> 新版 LSPosed 模块与独立 Android 应用位于 [`android/`](android/README.md)，构建和使用方式见该目录。以下保留原 Root daemon / WebUI 版本说明；两者是不同运行方式。
+> 新版独立 Android 应用位于 [`android/`](android/README.md)：默认 Root 系统级 IPv6 控制、修改前快照恢复与手动联网 API 检测，LSPosed 按应用策略为可选高级功能。以下保留原 Root daemon / WebUI 版本说明；两者是不同运行方式。
 
 ## 中文
 

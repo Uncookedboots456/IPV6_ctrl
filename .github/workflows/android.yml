@@ -22,7 +22,9 @@ jobs:
         run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
       - name: Check policy and build APKs
         working-directory: android
-        run: sh gradlew --no-daemon policyTest :app:assembleDebug :probe:assembleDebug
+        run: |
+          sh tests/system_ipv6_test.sh
+          sh gradlew --no-daemon policyTest onlineTest :app:assembleDebug :probe:assembleDebug :app:lintDebug :probe:lintDebug
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ipv6-ctrl-debug-apks

@@ -14,6 +14,8 @@ public final class Ipv6Module extends XposedModule {
     private SharedPreferences.OnSharedPreferenceChangeListener listener;
     private SharedPreferences preferences;
 
+    // This reflection runs in LSPosed's injected module context, not the manager UI.
+    @android.annotation.SuppressLint("BlockedPrivateApi")
     @Override public void onPackageReady(PackageReadyParam param) {
         if (!param.isFirstPackage()) return;
         String pkg = param.getPackageName();
@@ -24,6 +26,8 @@ public final class Ipv6Module extends XposedModule {
             preferences = getRemotePreferences("policy");
             listener = (prefs, key) -> reload(pkg);
             reload(pkg);
+            // System control needs no application injection; hook only explicit targets.
+            if (!rule.selected) return;
             preferences.registerOnSharedPreferenceChangeListener(listener);
             // AOSP Java resolver entry; numeric literals and Network resolution pass here too.
             var method = Class.forName("java.net.Inet6AddressImpl")

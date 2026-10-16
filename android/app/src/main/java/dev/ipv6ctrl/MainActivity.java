@@ -47,6 +47,8 @@ public final class MainActivity extends Activity {
     private static volatile boolean uncertain;
     private String message = "等待框架连接";
     private String failure;
+    private static SystemIpv6.Status systemStatus;
+    private static long systemReadAt;
     private LinearLayout root, content;
     private int bg, fg, muted, surface, blue, amber, green, red, line, soft, accentInk;
 
@@ -55,6 +57,8 @@ public final class MainActivity extends Activity {
                 (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES);
         setTheme(dark ? android.R.style.Theme_Material_NoActionBar : android.R.style.Theme_Material_Light_NoActionBar);
         super.onCreate(state);
+        if(Build.VERSION.SDK_INT>=33)getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,this::back);
         if (state != null) {
             page = state.getInt("page");
             draft = AddressPolicy.parse(state.getString("draft"));
@@ -83,7 +87,10 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onResume() { super.onResume(); rememberProbe();if (root != null) render(); }
-    @Override public void onBackPressed() { if(page!=0){page=0;render();}else super.onBackPressed(); }
+    // Native dispatcher handles API 33+; this fallback is for Android 9–12.
+    @android.annotation.SuppressLint("GestureBackNavigation")
+    @Override public void onBackPressed() { back(); }
+    private void back() { if(page!=0){page=0;render();}else finish(); }
     @Override protected void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);
         state.putInt("page",page);state.putString("draft",draft.name());state.putStringArrayList("targets",new ArrayList<>(targets));
@@ -121,7 +128,7 @@ public final class MainActivity extends Activity {
     private void row(String title,String detail,int color) {
         LinearLayout outer=new LinearLayout(this);outer.setBackgroundColor(surface);outer.setPadding(dp(16),dp(14),dp(16),dp(14));
         View stripe=new View(this);stripe.setBackgroundColor(color);outer.addView(stripe,new LinearLayout.LayoutParams(dp(3),dp(48)));
-        LinearLayout labels=new LinearLayout(this);labels.setOrientation(1);labels.setPadding(dp(12),0,0,0);
+        LinearLayout labels=new LinearLayout(this);labels.setOrientation(LinearLayout.VERTICAL);labels.setPadding(dp(12),0,0,0);
         labels.addView(text(title,16,color,true));TextView description=text(detail,14,muted,false);description.setPadding(0,dp(6),0,0);labels.addView(description);
         outer.addView(labels,new LinearLayout.LayoutParams(0,-2,1));content.addView(outer);divider();
     }
@@ -142,7 +149,7 @@ public final class MainActivity extends Activity {
         blue=Color.parseColor(dark?"#6B9BFF":"#2563EB");accentInk=dark?bg:Color.WHITE;
         amber=Color.parseColor(dark?"#FACC15":"#A16207");green=Color.parseColor(dark?"#4ADE80":"#15803D");
         red=Color.parseColor(dark?"#F87171":"#B91C1C");line=Color.parseColor(dark?"#252A32":"#E3E6EB");soft=Color.parseColor(dark?"#1C2027":"#EEF0F3");
-        root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(bg);
+        root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(bg);
         if(Build.VERSION.SDK_INT>=30)getWindow().setDecorFitsSystemWindows(false);
         getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
         root.setOnApplyWindowInsetsListener((view,insets)->{
@@ -153,22 +160,64 @@ public final class MainActivity extends Activity {
         if(page!=0){
             LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setPadding(dp(4),0,dp(8),0);
             IconView back=icon("back","返回总览",()->go(0));back.setId(R.id.tab_overview);header.addView(back,new LinearLayout.LayoutParams(dp(48),dp(56)));
-            header.addView(text(page==1?"作用范围":"诊断详情",22,fg,true),new LinearLayout.LayoutParams(0,-2,1));
+            header.addView(text(page==1?"应用作用范围":page==3?"高级应用策略":"诊断详情",22,fg,true),new LinearLayout.LayoutParams(0,-2,1));
             header.addView(icon("sun","切换明暗主题",this::theme),new LinearLayout.LayoutParams(dp(48),dp(48)));root.addView(header);
         }
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);
-        content=new LinearLayout(this);content.setOrientation(1);content.setPadding(dp(16),dp(16),dp(16),dp(16));
+        content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(16),dp(16),dp(16),dp(16));
         scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-        if(page==0)overview();else if(page==1)scopePage();else diagnostics();
+        if(page==0)systemOverview();else if(page==1)scopePage();else if(page==3)overview();else diagnostics();
         LinearLayout actions=new LinearLayout(this);actions.setPadding(dp(16),dp(10),dp(16),dp(14));actions.setBackground(outlined(bg,0,line));
-        Button refresh=button(busy?"正在读取…":"刷新状态",R.id.refresh_status,false,()->load(false));refresh.setEnabled(!busy&&!uncertain);actions.addView(refresh,new LinearLayout.LayoutParams(0,-2,1));
+        boolean appPage=page==1||page==3;
+        Button refresh=button(busy?"正在读取…":appPage?"读取框架":"读取系统 · Root",R.id.refresh_status,false,()->{if(appPage)load(false);else systemAction("status");});refresh.setEnabled(!busy&&(!appPage||!uncertain));actions.addView(refresh,new LinearLayout.LayoutParams(0,-2,1));
         LinearLayout.LayoutParams second=new LinearLayout.LayoutParams(0,-2,1);second.leftMargin=dp(10);
-        Button probe=button("运行探针",R.id.run_probe,false,this::runProbe);probe.setEnabled(!busy);actions.addView(probe,second);
+        Button probe=button("联网检测",R.id.run_probe,false,this::runProbe);probe.setEnabled(!busy);actions.addView(probe,second);
         root.addView(actions);setContentView(root);root.requestApplyInsets();
     }
 
+    private String systemTitle() {
+        if(systemStatus==null)return "系统状态未确认";
+        return switch(systemStatus.state()){case "blocked"->"已禁用 IPv6";case "enabled"->"IPv6 已启用";default->"部分接口启用 IPv6";};
+    }
+    private String systemDetail() {
+        if(systemStatus==null)return "点击读取系统以请求 Root 并核对实际接口。";
+        return "上次读取："+DateFormat.getTimeInstance(DateFormat.MEDIUM).format(new Date(systemReadAt))
+                +"\n禁用项 "+systemStatus.disabled()+" / "+systemStatus.total()+"（含 all / default）"
+                +"\n"+(systemStatus.restorable()?"本次启动的修改前快照可恢复":"没有本应用可恢复的快照");
+    }
+    private void systemOverview() {
+        note("IPv6 控制 · 系统级 Root",blue);
+        TextView title=text(systemTitle(),32,fg,true);title.setId(R.id.module_status);content.addView(title);
+        note(systemDetail(),muted);
+        note("禁用所有当前接口及新接口的 IPv6 默认值，无需 LSPosed 应用作用域。",fg);
+        Button block=button(busy?"处理中…":"系统级阻断 IPv6",R.id.block_system,true,()->new AlertDialog.Builder(this)
+                .setTitle("禁用系统 IPv6？").setMessage("将先保存当前参数，再通过 Root 修改所有接口的 disable_ipv6。影响全设备及现有 IPv6 连接，IPv6-only 网络可能断网。可用下方入口恢复修改前参数。仅本次开机有效；网络组件仍可能重新启用，切网后请复核。")
+                .setNegativeButton("取消",null).setPositiveButton("保存快照并禁用",(d,w)->systemAction("block")).show());
+        block.setEnabled(!busy);addButton(block);
+        Button restore=button("恢复修改前系统配置",R.id.restore_system,false,()->systemAction("restore"));
+        restore.setEnabled(!busy);addButton(restore);
+        String badge=probeBadge();row("外网 IPv6",badge,badge.equals("IPv6 可联网")?green:amber);
+        addButton(button("诊断详情",R.id.tab_diagnostics,false,()->go(2)));
+        addButton(button("高级：应用解析策略（可选）",R.id.tab_scope,false,()->go(3)));
+        if(loaded&&saved!=AddressPolicy.Mode.SYSTEM&&!savedTargets.isEmpty())note("仍有已保存的应用解析策略，可在高级入口恢复跟随系统并重启目标。",amber);
+        showFailure();timeline();
+        note("不会后台轮询或开机强制应用。sysctl 读取与联网结果分别展示；API 失败不等于系统阻断成功。",muted);
+    }
+    private void systemAction(String action) {
+        if(busy)return;
+        event("指令",action.equals("block")?"请求系统级阻断":action.equals("restore")?"请求恢复系统快照":"请求读取系统状态","Root · 不申请应用作用域");
+        work(()->{
+            systemStatus=null;
+            if(!action.equals("status"))getSharedPreferences("ui",0).edit().putLong("system_changed_at",System.currentTimeMillis()).apply();
+            SystemIpv6.Status result=SystemIpv6.run(this,action);
+            systemStatus=result;systemReadAt=System.currentTimeMillis();
+            if(!action.equals("status"))getSharedPreferences("ui",0).edit().putLong("system_changed_at",systemReadAt).apply();
+            event("确认",action.equals("status")?"已读取系统参数":action.equals("block")?"系统参数已写入并核对":"修改前参数已恢复并核对",systemTitle()+" · 请手动联网检测");
+        });
+    }
+
     private void overview() {
-        LinearLayout hero=new LinearLayout(this);hero.setOrientation(1);hero.setPadding(dp(16),dp(6),dp(16),dp(16));hero.setBackground(outlined(surface,20,line));content.addView(hero);
+        LinearLayout hero=new LinearLayout(this);hero.setOrientation(LinearLayout.VERTICAL);hero.setPadding(dp(16),dp(6),dp(16),dp(16));hero.setBackground(outlined(surface,20,line));content.addView(hero);
         LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);
         top.addView(text("IPv6 控制 · LSPosed",13,muted,true),new LinearLayout.LayoutParams(0,-2,1));
         LinearLayout badge=new LinearLayout(this);badge.setGravity(Gravity.CENTER_VERTICAL);badge.setPadding(dp(8),dp(5),dp(8),dp(5));badge.setBackground(outlined(surface,99,line));
@@ -206,18 +255,19 @@ public final class MainActivity extends Activity {
     }
 
     private void metric(LinearLayout parent,String name,String value,Runnable action) {
-        LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(10),dp(8),dp(10),dp(8));box.setBackground(rounded(soft,12));
+        LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(dp(10),dp(8),dp(10),dp(8));box.setBackground(rounded(soft,12));
         box.addView(text(name,11,muted,false));TextView result=text(value,13,fg,true);result.setSingleLine(true);result.setEllipsize(android.text.TextUtils.TruncateAt.END);box.addView(result);
         box.setContentDescription(name+"，"+value);box.setFocusable(true);box.setOnClickListener(v->action.run());
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-2,1);if(parent.getChildCount()>0)p.leftMargin=dp(8);parent.addView(box,p);
     }
     private void showFailure() {
         if(failure==null)return;
-        LinearLayout alert=new LinearLayout(this);alert.setOrientation(1);alert.setPadding(dp(14),dp(12),dp(14),dp(12));alert.setBackground(outlined(surface,14,red));
+        LinearLayout alert=new LinearLayout(this);alert.setOrientation(LinearLayout.VERTICAL);alert.setPadding(dp(14),dp(12),dp(14),dp(12));alert.setBackground(outlined(surface,14,red));
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.topMargin=dp(14);content.addView(alert,p);
         alert.addView(text("操作未完成",14,red,true));TextView detail=text(failure,13,fg,false);detail.setPadding(0,dp(6),0,dp(8));alert.addView(detail);
         LinearLayout actions=new LinearLayout(this);alert.addView(actions);
-        if(!uncertain){Button retry=button("重新读取",View.NO_ID,false,()->load(false));retry.setEnabled(!busy);actions.addView(retry,new LinearLayout.LayoutParams(0,-2,1));}
+        boolean appPage=page==1||page==3;
+        if(!uncertain||!appPage){Button retry=button("重新读取",View.NO_ID,false,()->{if(appPage)load(false);else systemAction("status");});retry.setEnabled(!busy);actions.addView(retry,new LinearLayout.LayoutParams(0,-2,1));}
         actions.addView(button("收起提示",View.NO_ID,false,()->{failure=null;render();}),new LinearLayout.LayoutParams(0,-2,1));
     }
     private static void event(String kind,String title,String detail) {
@@ -234,7 +284,7 @@ public final class MainActivity extends Activity {
             FrameLayout rail=new FrameLayout(this);item.addView(rail,new LinearLayout.LayoutParams(dp(18),-1));
             View track=new View(this);track.setBackgroundColor(line);FrameLayout.LayoutParams trackP=new FrameLayout.LayoutParams(dp(2),-1,Gravity.CENTER_HORIZONTAL);rail.addView(track,trackP);
             View dot=new View(this);GradientDrawable circle=outlined(bg,99,color);circle.setStroke(dp(2),color);dot.setBackground(circle);FrameLayout.LayoutParams dotP=new FrameLayout.LayoutParams(dp(10),dp(10),Gravity.TOP|Gravity.CENTER_HORIZONTAL);dotP.topMargin=dp(13);rail.addView(dot,dotP);
-            LinearLayout labels=new LinearLayout(this);labels.setOrientation(1);labels.setPadding(dp(8),dp(6),0,dp(12));item.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
+            LinearLayout labels=new LinearLayout(this);labels.setOrientation(LinearLayout.VERTICAL);labels.setPadding(dp(8),dp(6),0,dp(12));item.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
             TextView stamp=text(DateFormat.getTimeInstance(DateFormat.MEDIUM).format(new Date(e.time))+"   "+e.kind,11,color,false);stamp.setTypeface(Typeface.MONOSPACE);labels.addView(stamp);
             labels.addView(text(e.title,14,fg,true));if(!e.detail.isEmpty())labels.addView(text(e.detail,12,muted,false));
         }
@@ -253,17 +303,19 @@ public final class MainActivity extends Activity {
         addButton(button("选择其他应用",View.NO_ID,false,this::pickApps));
         Button request=button("请求所选 LSPosed 作用域",View.NO_ID,true,this::requestScope);request.setEnabled(connected()&&!busy);addButton(request);
         Button save=button("保存目标与策略",R.id.save_policy,false,this::confirmSave);save.setEnabled(connected()&&!busy);addButton(save);
-        note("首版排除系统应用和管理器。探针只解析回环地址，不访问互联网。",muted);
+        note("系统级控制不需要这里的授权。仅在确有按应用需求时选择目标；新目标需要重启进程。",muted);
     }
 
     private void diagnostics() {
         showFailure();
+        row("系统参数",systemTitle()+"\n"+systemDetail(),blue);
         row("框架服务",service==null?"未连接，不能确认模块激活":message,connected()?green:amber);
         row("已保存策略",loaded?label(saved)+" · "+savedTargets.size()+" 个目标":"尚未读取",blue);
         section("独立进程实测");TextView result=text(probeSummary(),14,fg,false);result.setId(R.id.probe_result);result.setPadding(dp(20),dp(12),dp(20),dp(12));result.setTextIsSelectable(true);content.addView(result);
-        Button reset=button("恢复跟随系统",R.id.reset_policy,false,()->{draft=AddressPolicy.Mode.SYSTEM;confirmSave();});reset.setEnabled(connected()&&!busy);addButton(reset);
+        Button local=button("仅检测本机解析（不联网）",View.NO_ID,false,()->runProbe(false));local.setEnabled(!busy);addButton(local);
+        Button reset=button("清除应用解析策略",R.id.reset_policy,false,()->{draft=AddressPolicy.Mode.SYSTEM;confirmSave();});reset.setEnabled(connected()&&!busy);addButton(reset);
         addButton(button("导出脱敏诊断",View.NO_ID,false,()->{
-            String report="IPV6 Ctrl 0.1.0\n策略="+saved+"\n目标数="+savedTargets.size()+"\n"+probeSummary();
+            String report="IPV6 Ctrl 0.2.0\n"+systemTitle()+"\n"+systemDetail()+"\n应用策略="+saved+"\n目标数="+savedTargets.size()+"\n"+probeSummary();
             startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT,report),"分享前请复核诊断内容"));
         }));
         addButton(button("开源许可",View.NO_ID,false,()->{
@@ -271,7 +323,7 @@ public final class MainActivity extends Activity {
                 StringBuilder all=new StringBuilder();String next;while((next=reader.readLine())!=null)all.append(next).append('\n');notice(all.toString());
             }catch(Exception e){notice("许可文件读取失败");}
         }));
-        note("实测仅代表独立探针的 Java 地址解析。其他应用、已有连接与 Native 网络栈仍需分别验证。",muted);
+        note("联网检测仅代表当前默认网络到 ipify 的路径；VPN、代理、切网及 API 故障可能影响结果。每次手动检测各请求一次 IPv4 / IPv6 API，无自动重试，不保存公网 IP。",muted);
     }
 
     private String label(AddressPolicy.Mode mode) { return switch(mode){case SYSTEM->"跟随系统";case IPV4_FIRST->"优先使用 IPv4";case IPV4_ONLY->"过滤 IPv6 解析结果";}; }
@@ -280,27 +332,31 @@ public final class MainActivity extends Activity {
     private String probeBadge() {
         SharedPreferences ui=getSharedPreferences("ui",0);String raw=ui.getString("probe_report",null);
         if(raw==null)return "未检测";
-        if(ui.getLong("probe_time",0)<savedAt)return "需重测";
         try{
             JSONObject report=new JSONObject(raw);String hook=report.optString("hook");
-            if(report.has("error"))return "检测失败";
-            if(!hook.startsWith("api=102;"))return "未注入";
-            if(hook.contains("selected=false"))return "未选目标";
-            if(!report.optBoolean("ipv4"))return "IPv4 失败";
-            return report.optInt("v6Count")==0?"仅 IPv4":report.optInt("firstFamily")==4?"IPv4 首选":"含 IPv6";
+            if(report.optLong("testedAt",ui.getLong("probe_time",0))<Math.max(savedAt,ui.getLong("system_changed_at",0)))return "需重测";
+            if(report.optBoolean("online")){
+                if(report.optBoolean("onlineV6"))return "IPv6 可联网";
+                if(hook.contains("mode=IPV4_ONLY;selected=true"))return "受应用策略影响";
+                return report.optBoolean("onlineV4")?"IPv6 未连通":"网络 / API 未确认";
+            }
+            return "未联网检测";
         }catch(Exception e){return "记录损坏";}
     }
     private void rememberProbe() {
         SharedPreferences ui=getSharedPreferences("ui",0);long at=ui.getLong("probe_time",0);
         if(at<=seenProbeTime)return;seenProbeTime=at;
         if(at<SESSION_STARTED)return;
-        String result=probeBadge();boolean bad=result.equals("检测失败")||result.equals("记录损坏")||result.equals("IPv4 失败");
-        event(bad?"错误":result.equals("未注入")||result.equals("未选目标")||result.equals("需重测")?"注意":"检测","已读取探针报告",result+" · 完整结果见诊断");
+        String result=probeBadge();boolean bad=result.equals("记录损坏");
+        event(bad?"错误":result.equals("IPv6 可联网")?"检测":"注意","已读取探针报告",result+" · 完整结果见诊断");
     }
     private void runProbe() {
+        runProbe(true);
+    }
+    private void runProbe(boolean online) {
         try{
-            startActivity(new Intent().setClassName(PROBE,PROBE+".ProbeActivity"));
-            event("指令","启动独立探针","仅解析回环地址，等待目标进程报告");
+            startActivity(new Intent().setClassName(PROBE,PROBE+".ProbeActivity").putExtra("online",online));
+            event("指令","启动独立探针",online?"ipify IPv4 / IPv6 各一次 HTTPS 查询；不保存公网 IP":"仅解析回环地址，不联网");
         }catch(Exception e){event("错误","探针启动失败","请安装同版本、同签名的探针 APK");notice("请先安装同版本的探针 APK。");render();}
     }
     private String appLabel(String pkg) {
@@ -329,7 +385,7 @@ public final class MainActivity extends Activity {
     }
     private void work(Runnable job) {
         if(busy)return;busy=true;failure=null;render();IO.execute(()->{
-            try{job.run();}catch(RuntimeException e){message="操作未完成："+e.getMessage();failure=message;event("错误","操作未完成",String.valueOf(e.getMessage()));}
+            try{job.run();}catch(RuntimeException e){failure="操作未完成："+e.getMessage();event("错误","操作未完成",String.valueOf(e.getMessage()));}
             runOnUiThread(()->{busy=false;render();});
         });
     }
@@ -387,13 +443,17 @@ public final class MainActivity extends Activity {
         if(raw==null)return "未检测。请在诊断页运行独立探针。";
         try{
             JSONObject report=new JSONObject(raw);String hook=report.optString("hook");
-            String title=hook.startsWith("api=102;")?"已确认探针注入":"探针未注入";
-            if(report.has("error"))return "探针失败："+report.getString("error");
-            boolean stale=ui.getLong("probe_time",0)<savedAt;
-            return (stale?"旧结果，请重新检测\n":"")+title+"\n检测时间："+DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.MEDIUM).format(new Date(ui.getLong("probe_time",0)))
-                    +"\nIPv4："+(report.optBoolean("ipv4")?"可解析":"失败")+"\nIPv6："+(report.optBoolean("ipv6")?"可解析":"未返回地址")
+            String title=hook.startsWith("api=102;")?"应用解析 Hook：已注入":"应用解析 Hook：未注入（系统检测无需注入）";
+            boolean stale=report.optLong("testedAt",ui.getLong("probe_time",0))<Math.max(savedAt,ui.getLong("system_changed_at",0));
+            String online=report.optBoolean("online")?"\n外网 IPv4："+(report.optBoolean("onlineV4")?"HTTPS 可用":report.optString("onlineV4Detail","未确认"))
+                    +"\n外网 IPv6："+(report.optBoolean("onlineV6")?"HTTPS 可用":report.optString("onlineV6Detail","未确认"))
+                    +"\n"+(hook.contains("mode=IPV4_ONLY;selected=true")?"探针受应用过滤策略影响，失败不能判断系统状态。":"IPv6 API 失败可能是网络或服务故障，需结合系统参数判断。")
+                    :"\n本次未联网检测。";
+            return (stale?"旧结果，请重新检测\n":"")+title+"\n检测时间："+DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.MEDIUM).format(new Date(ui.getLong("probe_time",0)))+online
+                    +(report.has("error")?"\n本机解析异常："+report.optString("error"):"")
+                    +"\n回环 IPv4："+(report.optBoolean("ipv4")?"可解析":"失败")+"\n回环 IPv6："+(report.optBoolean("ipv6")?"可解析":"未返回地址")
                     +"\n返回地址：IPv4 "+report.optInt("v4Count")+" / IPv6 "+report.optInt("v6Count")+"\n首选地址：IPv"+report.optInt("firstFamily")
-                    +"\n仅代表探针；实际系统 IPv6 状态未确认。";
+                    +"\n系统参数状态请看上方读取结果。";
         }catch(Exception e){return "诊断记录损坏，请重新运行探针。";}
     }
 }

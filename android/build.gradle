@@ -16,3 +16,18 @@ tasks.register('policyTest', JavaExec) {
     mainClass = 'dev.ipv6ctrl.PolicyTest'
     enableAssertions = true
 }
+
+def onlineChecks = tasks.register('compileOnlineChecks', JavaCompile) {
+    source 'probe/src/main/java/dev/ipv6ctrl/probe/OnlineCheck.java', 'tests/OnlineCheckTest.java'
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('online-checks')
+    sourceCompatibility = '17'
+    targetCompatibility = '17'
+    options.encoding = 'UTF-8'
+}
+tasks.register('onlineTest', JavaExec) {
+    dependsOn onlineChecks
+    classpath = files(onlineChecks.flatMap { it.destinationDirectory })
+    mainClass = 'dev.ipv6ctrl.probe.OnlineCheckTest'
+    enableAssertions = true
+}

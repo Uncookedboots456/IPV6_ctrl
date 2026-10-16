@@ -17,7 +17,7 @@ def main():
     args = parser.parse_args()
     package = 'dev.ipv6ctrl.probe'
     adb('shell', 'am', 'force-stop', package)
-    adb('shell', 'am', 'start', '-W', '-n', package + '/.ProbeActivity')
+    adb('shell', 'am', 'start', '-W', '-n', package + '/.ProbeActivity', '--ez', 'online', 'false')
     deadline = time.monotonic() + 20
     result = None
     while time.monotonic() < deadline:
@@ -30,7 +30,7 @@ def main():
             break
         time.sleep(.3)
     assert result is not None, 'probe did not report within 20 seconds'
-    marker = 'not-injected' if args.unhooked else f'api=102;mode={args.mode};selected={str(not args.unselected).lower()}'
+    marker = 'not-injected' if args.unhooked or args.unselected else f'api=102;mode={args.mode};selected=true'
     assert result.get('hook') == marker, result
     active = not args.unselected and not args.unhooked
     mode = args.mode if active else 'SYSTEM'
