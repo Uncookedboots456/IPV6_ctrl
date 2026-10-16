@@ -106,6 +106,7 @@ public final class MainActivity extends Activity {
     }
     private Button button(String label, int id, boolean primary, Runnable action) {
         Button view = new Button(this);view.setText(label);view.setTextSize(14);view.setAllCaps(false);view.setMinHeight(dp(52));view.setMinimumWidth(0);
+        view.setStateListAnimator(null);view.setElevation(0);
         view.setPadding(dp(10),dp(8),dp(10),dp(8));view.setId(id);
         view.setTextColor(new ColorStateList(new int[][]{{-android.R.attr.state_enabled},{}},new int[]{muted,primary?accentInk:fg}));
         var background=new android.graphics.drawable.StateListDrawable();
@@ -293,8 +294,8 @@ public final class MainActivity extends Activity {
         SharedPreferences ui=getSharedPreferences("ui",0);long at=ui.getLong("probe_time",0);
         if(at<=seenProbeTime)return;seenProbeTime=at;
         if(at<SESSION_STARTED)return;
-        String result=probeBadge();boolean bad=result.equals("检测失败")||result.equals("记录损坏");
-        event(bad?"错误":result.equals("未注入")||result.equals("未选目标")?"注意":"检测","独立探针已返回",result+" · 完整结果见诊断");
+        String result=probeBadge();boolean bad=result.equals("检测失败")||result.equals("记录损坏")||result.equals("IPv4 失败");
+        event(bad?"错误":result.equals("未注入")||result.equals("未选目标")||result.equals("需重测")?"注意":"检测","已读取探针报告",result+" · 完整结果见诊断");
     }
     private void runProbe() {
         try{
