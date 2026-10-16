@@ -315,7 +315,7 @@ public final class MainActivity extends Activity {
         Button local=button("仅检测本机解析（不联网）",View.NO_ID,false,()->runProbe(false));local.setEnabled(!busy);addButton(local);
         Button reset=button("清除应用解析策略",R.id.reset_policy,false,()->{draft=AddressPolicy.Mode.SYSTEM;confirmSave();});reset.setEnabled(connected()&&!busy);addButton(reset);
         addButton(button("导出脱敏诊断",View.NO_ID,false,()->{
-            String report="IPV6 Ctrl 0.2.0\n"+systemTitle()+"\n"+systemDetail()+"\n应用策略="+saved+"\n目标数="+savedTargets.size()+"\n"+probeSummary();
+            String report="IPV6 Ctrl 2.0\n"+systemTitle()+"\n"+systemDetail()+"\n应用策略="+saved+"\n目标数="+savedTargets.size()+"\n"+probeSummary();
             startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT,report),"分享前请复核诊断内容"));
         }));
         addButton(button("开源许可",View.NO_ID,false,()->{

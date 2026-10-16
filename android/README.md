@@ -1,5 +1,7 @@
 # IPV6 Ctrl Android 应用
 
+当前发布：**[v2.0 Pre-release](https://github.com/Uncookedboots456/IPV6_ctrl/releases/tag/v2.0)**。下载主应用与探针两个调试 APK，并使用发布页的 `SHA256SUMS.txt` 校验；两个 APK 的版本均为 `2.0`（versionCode 3）。
+
 原生 Java 管理应用，默认提供 **Root 系统级 IPv6 控制**和手动联网检测；LSPosed API 102 按应用解析控制保留为可选高级功能。系统控制和联网探针都不需要框架作用域。
 
 首页显示实际读取的系统参数及时间，提供系统级阻断、修改前快照恢复和联网检测。首次打开不会请求 Root、申请应用作用域或自动联网。原有按应用策略不会被升级自动清除，可在高级入口恢复“跟随系统”并重启目标。
