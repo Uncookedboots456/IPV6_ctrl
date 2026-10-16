@@ -1,0 +1,146 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>IPv6 守护</title><style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#111418;--mute:#5d6572;--line:#e3e6eb;--soft:#eef0f3;--acc:#2563eb;--acc-ink:#fff;--ok:#15803d;--warn:#a16207;--bad:#b91c1c;
+ --f:system-ui,-apple-system,"Roboto","Noto Sans CJK SC","PingFang SC",sans-serif;--m:ui-monospace,monospace}
+@media(prefers-color-scheme:dark){:root{--bg:#0b0d10;--card:#14171c;--ink:#eceef1;--mute:#98a1ae;--line:#252a32;--soft:#1c2027;--acc:#6b9bff;--acc-ink:#0b0d10;--ok:#4ade80;--warn:#facc15;--bad:#f87171}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 var(--f);padding:16px 16px calc(96px + env(safe-area-inset-bottom))}
+.hero{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:18px 16px 16px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.brand{font-size:13px;font-weight:600;color:var(--mute)}
+.guard{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 12px;border-radius:99px;border:1px solid var(--line);font-size:13px;font-weight:600;color:var(--gc,var(--mute))}
+.guard svg{width:16px;height:16px}
+.state{margin:14px 0 4px;display:flex;align-items:baseline;gap:10px}
+.state b{font-size:40px;line-height:1.1;font-weight:750;letter-spacing:-.01em}
+.state span{font-size:13px;color:var(--mute)}
+.sub{font-size:13px;color:var(--mute);margin:0 0 14px;min-height:19px}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--soft);border-radius:14px;padding:4px}
+.seg button{min-height:52px;border:0;border-radius:11px;background:transparent;color:var(--mute);font:600 16px var(--f);display:flex;align-items:center;justify-content:center;gap:8px}
+.seg button[aria-checked=true]{background:var(--acc);color:var(--acc-ink)}
+.seg button[aria-checked=true]::before{content:"✓";font-weight:700}
+.seg button:focus-visible,.act button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.seg button:disabled{opacity:.55}
+.cells{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+.cells div{background:var(--soft);border-radius:12px;padding:8px 10px;font-size:12px;color:var(--mute)}
+.cells b{display:block;color:var(--ink);font-size:14px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.chip{font:12px var(--m);padding:4px 8px;border-radius:8px;border:1px solid var(--line);color:var(--ink)}
+.chip.off{color:var(--mute);border-style:dashed;text-decoration:line-through}
+.note{font-size:12px;color:var(--mute);margin-top:10px}
+.alert{margin-top:14px;border:1px solid var(--bad);border-left-width:4px;border-radius:14px;padding:12px 14px;background:var(--card)}
+.alert[hidden]{display:none}.alert b{display:block;color:var(--bad)}.alert p{margin:4px 0 8px;font-size:13px}
+.alert .row{display:flex;gap:8px}.alert button{min-height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--soft);color:var(--ink);font:600 14px var(--f)}
+h2{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;margin:22px 4px 10px}
+h2 small{font-weight:400;color:var(--mute);font-size:12px}
+.tl{list-style:none;margin:0;padding:0 0 0 18px;position:relative}
+.tl::before{content:"";position:absolute;left:5px;top:8px;bottom:8px;width:2px;background:var(--line)}
+.ev{position:relative;padding:8px 0 12px}
+.ev::before{content:"";position:absolute;left:-17px;top:13px;width:10px;height:10px;border-radius:50%;background:var(--card);border:2px solid var(--c,var(--mute))}
+.ev .h{display:flex;gap:8px;align-items:baseline}.ev time{font:12px var(--m);color:var(--mute)}
+.ev .k{font-size:11px;font-weight:600;padding:1px 6px;border-radius:6px;background:var(--soft);color:var(--c,var(--mute))}
+.ev b{display:block;font-weight:600;margin-top:2px}.ev .d{font:12px var(--m);color:var(--mute);word-break:break-all}
+.ev details{margin-top:4px}.ev summary{font-size:12px;color:var(--acc);min-height:28px;cursor:pointer}
+.ev pre{margin:4px 0 0;font:11px/1.5 var(--m);background:var(--soft);border-radius:8px;padding:8px;white-space:pre-wrap;word-break:break-all}
+.ev.ghost{opacity:.7}.ev.ghost::before{border-style:dashed}
+.ev.new{animation:in .3s ease-out}@keyframes in{from{opacity:0;transform:translateY(-4px)}}
+.act{position:fixed;left:0;right:0;bottom:0;display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:10px 16px calc(14px + env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--line)}
+.act button{min-height:52px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:600 15px var(--f);display:flex;align-items:center;justify-content:center;gap:6px}
+.act button:disabled{opacity:.55}
+.spin{width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .8s linear infinite;display:inline-block}
+@keyframes sp{to{transform:rotate(360deg)}}
+.busy .state b{opacity:.5}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.spin{border-right-color:currentColor;opacity:.5}}
+</style></head><body>
+<section class="hero" aria-labelledby="stT">
+ <div class="top"><span class="brand">IPv6 控制 · 守护</span><span class="guard" id="guard" role="status"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 1.5 13.5 3.5v4c0 3.4-2.4 5.6-5.5 7-3.1-1.4-5.5-3.6-5.5-7v-4z"/><path id="gi" d=""/></svg><span id="gt">连接中</span></span></div>
+ <div class="state" aria-live="polite"><b id="stT">读取中</b><span>IPv6 全局</span></div>
+ <p class="sub" id="sub">正在读取 json-status…</p>
+ <div class="seg" role="radiogroup" aria-label="IPv6 开关"><button role="radio" aria-checked="false" data-a="enable" id="bE">开启</button><button role="radio" aria-checked="false" data-a="disable" id="bD">关闭</button></div>
+ <div class="cells"><div>目标<b id="cT">—</b></div><div>守护<b id="cG">—</b></div><div>外网 v6<b id="cO">未探测</b></div></div>
+ <div class="chips" id="chips"></div><div class="note" id="note"></div>
+</section>
+<div class="alert" id="alert" role="alert" hidden><b id="aT"></b><p id="aM"></p><div class="row"><button id="aR">重试</button><button id="aX">关闭</button></div></div>
+<h2>值守时间线 <small id="cnt"></small></h2><ol class="tl" id="tl"></ol>
+<nav class="act"><button id="ref">↻ 刷新状态</button><button id="probe">⇡ 外网探测</button></nav>
+<script>/* ---- 模拟层：仿真 ipv6_manager.sh 的真实 JSON 形状；真机上替换为 window.ksu.exec 桥 ---- */
+const Q=new URLSearchParams(location.search);let MOCK=Q.get('state')||'enabled';
+const IFS=['lo','wlan0','rmnet_data0','rmnet_data1','dummy0','ip6tnl0'];
+const ST={target:MOCK==='disabled'?'disabled':'enabled'};
+var fakeStatus=function(){const t=ST.target;
+ if(MOCK==='mixed')return {ok:true,state:'mixed',target:'unmanaged',target_enforced:false,interfaces:IFS.map((n,i)=>({name:n,state:i%2?'disabled':'enabled'}))};
+ if(MOCK==='drift')return {ok:true,state:'enabled',target:'disabled',target_enforced:false,interfaces:IFS.map(n=>({name:n,state:n==='rmnet_data1'?'enabled':'disabled'}))};
+ // daemon GET_STATUS 真实形状不含 interfaces；此处附带 interfaces 仅为演示（需后端支持）
+ return {ok:true,state:t,target:t,target_enforced:true,interfaces:IFS.map(n=>({name:n,state:t}))};};
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+async function exec(cmd){const sub=cmd.split(' ').pop();
+ if(MOCK==='loading')return new Promise(()=>{});
+ await wait(sub.includes('online')?1400:600);
+ if(MOCK==='timeout'){throw new Error('KernelSU command timed out');}
+ if(MOCK==='parse')return {errno:0,stdout:'[!] Root permission is required.\n{"ok":tr',stderr:''};
+ if(MOCK==='nodaemon'&&(sub==='enable'||sub==='disable'))return {errno:1,stdout:'{"ok":false,"error":"Daemon unavailable; no fallback network writes attempted"}',stderr:''};
+ if(MOCK==='noprocfs')return {errno:2,stdout:'{"ok":false,"error":"IPv6 procfs status is unavailable"}',stderr:''};
+ if(sub==='enable'||sub==='disable'){ST.target=sub==='enable'?'enabled':'disabled';if(MOCK!=='drift'&&MOCK!=='mixed')MOCK=ST.target;const s=fakeStatus();return {errno:0,stdout:JSON.stringify({ok:true,state:s.state,target:s.target,target_enforced:s.target_enforced}),stderr:''};}
+ if(sub==='json-status')return {errno:0,stdout:JSON.stringify(fakeStatus()),stderr:''};
+ if(sub==='json-online-check'){if(MOCK==='offline'||ST.target==='disabled')return {errno:0,stdout:'{"ok":false,"error":"Online IPv6 check failed across ipify, SeeIP, and icanhazip."}',stderr:''};
+  return {errno:0,stdout:JSON.stringify({ok:true,provider:'ipify',ipv6:'2409:8a55:3c1e:7a0:4d2f:91b6:e0c3:1a77',output:'Online IPv6 check passed via ipify: 2409:8a55:…'}),stderr:''};}
+ return {errno:127,stdout:'',stderr:'unknown'};}
+const SCRIPT='/data/adb/modules/ipv6_ctrl/scripts/ipv6_manager.sh';
+async function run(sub,timeout=15000){let r;
+ try{r=await Promise.race([exec(`sh ${SCRIPT} ${sub}`),wait(timeout).then(()=>{throw new Error('timeout')})]);}
+ catch(e){return {kind:'timeout',msg:String(e.message||e)}}
+ let d;try{d=JSON.parse((r.stdout||'').trim())}catch(e){return {kind:'parse',msg:e.message,raw:r.stdout}}
+ if(!d.ok)return {kind:/Daemon unavailable/.test(d.error)?'nodaemon':'error',msg:d.error,data:d};
+ return {kind:'ok',data:d};}
+const CN={enabled:'已开启',disabled:'已关闭',mixed:'混合',unknown:'未知',unmanaged:'未托管'};
+const ERRCN={timeout:'命令超时（15 秒无响应）',parse:'返回内容不是合法 JSON',nodaemon:'守护进程不可用，未执行任何写入',error:'脚本返回错误'};
+if(Q.get('theme'))document.documentElement.dataset.theme=Q.get('theme');
+
+/* 与真实后端对齐：守护进程 GET_STATUS 不含 interfaces；仅 procfs 回退（target=unmanaged）才有 */
+const _fs=fakeStatus;fakeStatus=function(){const s=_fs();if(s.target!=='unmanaged')delete s.interfaces;return s};
+const $=s=>document.querySelector(s);let busy=false,last=null,lastFail=null;const log=[];
+const now=()=>new Date().toTimeString().slice(0,8);
+const ICON={ok:'M5.5 8.2 7.3 10 10.8 6.3',bad:'M8 5v3.6M8 10.8v.2',warn:'M5.5 8h5',idle:''};
+const FIX={nodaemon:['守护进程未运行','未执行任何写入。请确认模块已在 KernelSU 中启用；必要时重启设备让 service.sh 拉起守护进程。'],
+ timeout:['命令超时（15 秒）','KernelSU 在 15 秒内没有返回。可能设备卡顿或脚本挂起，稍后重试；若反复出现请检查守护进程。'],
+ parse:['返回内容无法解析','脚本输出不是合法 JSON，常见原因是缺少 root 授权。请在 KernelSU 中确认本模块的 root 权限。'],
+ error:['脚本返回错误','见时间线中的原始输出。']};
+function ev(kind,tag,title,detail,raw,ghost){log.unshift({kind,tag,title,detail,raw,t:ghost||now(),ghost:!!ghost});paint()}
+function paint(){const C={ok:'var(--ok)',bad:'var(--bad)',warn:'var(--warn)',acc:'var(--acc)',info:'var(--mute)'};
+ $('#tl').innerHTML=log.slice(0,40).map((e,i)=>`<li class="ev ${i===0&&!e.ghost?'new':''} ${e.ghost?'ghost':''}" style="--c:${C[e.kind]}"><div class="h"><time>${e.t}</time><span class="k">${e.tag}</span></div><b>${e.title}</b>${e.detail?`<div class="d">${e.detail}</div>`:''}${e.raw?`<details><summary>查看原始输出</summary><pre>${e.raw.replace(/</g,'&lt;')}</pre></details>`:''}</li>`).join('');
+ $('#cnt').textContent=`本次会话 ${log.filter(e=>!e.ghost).length} 条`}
+function guard(kind,text){$('#guard').style.setProperty('--gc',{ok:'var(--ok)',bad:'var(--bad)',warn:'var(--warn)',idle:'var(--mute)'}[kind]);$('#gi').setAttribute('d',ICON[kind]);$('#gt').textContent=text}
+function render(d){last=d;const s=d.state;$('#stT').textContent=CN[s]||'未知';
+ $('#bE').setAttribute('aria-checked',s==='enabled');$('#bD').setAttribute('aria-checked',s==='disabled');
+ $('#cT').textContent=CN[d.target]||d.target;
+ if(d.target==='unmanaged'){guard('warn','未托管');$('#cG').textContent='离线 · 只读';$('#sub').textContent='守护进程未响应，状态来自 procfs 回退读取'}
+ else if(d.target_enforced){guard('ok','守护中');$('#cG').textContent='已锁定';$('#sub').textContent=`守护进程正在保持「${CN[d.target]}」`}
+ else{guard('bad','偏离目标');$('#cG').textContent='偏离';$('#sub').textContent=`实际「${CN[s]}」≠ 目标「${CN[d.target]}」，可再次下发`}
+ if(s==='mixed')$('#sub').textContent='部分接口与全局状态不一致（见下方接口）';
+ const ifs=d.interfaces;$('#chips').innerHTML=ifs?ifs.map(i=>`<span class="chip ${i.state==='enabled'?'':'off'}" title="${CN[i.state]}">${i.state==='enabled'?'●':'○'} ${i.name}</span>`).join(''):'';
+ $('#note').textContent=ifs?'● 开启　○ 关闭':'逐接口状态：守护进程暂不提供（需后端支持 GET_STATUS 返回 interfaces）'}
+function fail(r,what,retry){const [t,m]=FIX[r.kind]||FIX.error;lastFail=retry;$('#aT').textContent=`${what}失败 · ${t}`;$('#aM').textContent=m;$('#alert').hidden=false;
+ ev('bad','错误',`${what}失败 · ${t}`,r.msg,r.raw||(r.data?JSON.stringify(r.data):r.msg))}
+function lock(on,btn,label){busy=on;document.body.classList.toggle('busy',on);document.querySelectorAll('button').forEach(b=>{if(!b.closest('.alert'))b.disabled=on});
+ if(btn){btn.dataset.l=btn.dataset.l||btn.innerHTML;btn.innerHTML=on?`<span class="spin" aria-hidden="true"></span>${label}`:btn.dataset.l}}
+async function status(){const r=await run('json-status');if(r.kind!=='ok'){fail(r,'读取状态',status);$('#stT').textContent='未知';$('#sub').textContent='无法读取状态';guard('idle','未知');return}
+ const d=r.data,changed=!last||last.state!==d.state||last.target_enforced!==d.target_enforced||last.target!==d.target;
+ if(changed){ev(d.state==='enabled'?'ok':d.state==='disabled'?'info':'warn','状态',`IPv6 ${CN[d.state]}`,`target=${d.target} · enforced=${d.target_enforced}`);
+  if(d.target!=='unmanaged'&&!d.target_enforced)ev('warn','偏离','检测到实际状态偏离目标',`实际 ${d.state} ≠ 目标 ${d.target}`)}
+ render(d)}
+async function toggle(a){if(busy||!last)return;if(last.target_enforced&&last.state===(a==='enable'?'enabled':'disabled'))return;
+ $('#alert').hidden=true;const btn=a==='enable'?$('#bE'):$('#bD');lock(true,btn,'下发中');$('#sub').textContent=`正在${a==='enable'?'开启':'关闭'} IPv6…`;
+ ev('acc','指令',`下发：${a==='enable'?'开启':'关闭'} IPv6`,`sh ipv6_manager.sh ${a}`);
+ const r=await run(a);if(r.kind!=='ok')fail(r,a==='enable'?'开启':'关闭',()=>toggle(a));else ev(r.data.target_enforced?'ok':'warn','确认','守护进程已确认',`state=${r.data.state} · enforced=${r.data.target_enforced}`);
+ await status();lock(false,btn)}
+async function refresh(){if(busy)return;$('#alert').hidden=true;lock(true,$('#ref'),'读取中');await status();lock(false,$('#ref'))}
+async function probe(){if(busy)return;lock(true,$('#probe'),'探测中');$('#cO').textContent='探测中…';const r=await run('json-online-check',20000);
+ if(r.kind==='ok'){$('#cO').textContent='✓ 可达';ev('ok','探测',`外网 IPv6 可达（${r.data.provider}）`,r.data.ipv6)}
+ else if(r.kind==='error'){$('#cO').textContent='✕ 不可达';ev('warn','探测','外网 IPv6 不可达',r.msg)}
+ else{$('#cO').textContent='— 失败';fail(r,'外网探测',probe)}
+ lock(false,$('#probe'))}
+$('#bE').onclick=()=>toggle('enable');$('#bD').onclick=()=>toggle('disable');$('#ref').onclick=refresh;$('#probe').onclick=probe;
+$('#aX').onclick=()=>$('#alert').hidden=true;$('#aR').onclick=()=>{$('#alert').hidden=true;lastFail&&lastFail()};
+log.push({kind:'info',tag:'需后端支持 GET_EVENTS',title:'开机守护：按目标重新应用',detail:'守护进程历史事件示意；当前时间线仅记录本次会话',t:'08:02:11',ghost:true});paint();
+(async()=>{lock(true,$('#ref'),'读取中');await status();lock(false,$('#ref'));
+ if(Q.get('act'))await toggle(Q.get('act'));if(Q.get('probe'))await probe()})();
+</script></body></html>
