@@ -9,6 +9,7 @@ import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.RippleDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
@@ -33,14 +34,21 @@ public final class MainActivity extends Activity {
     private static volatile XposedService service;
     private static boolean registered;
     private static WeakReference<MainActivity> current = new WeakReference<>(null);
+    private record Event(long time, String kind, String title, String detail) {}
+    // ponytail: bounded process-session history; no database or invented boot events.
+    private static final Deque<Event> events = new ArrayDeque<>();
+    private static final long SESSION_STARTED = System.currentTimeMillis();
+    private static long seenProbeTime;
     private AddressPolicy.Mode saved = AddressPolicy.Mode.SYSTEM, draft = saved;
     private Set<String> savedTargets = new HashSet<>(), targets = new HashSet<>(), scope = new HashSet<>();
     private long savedAt;
     private int page;
-    private boolean dark, busy, uncertain;
+    private boolean dark, busy, loaded;
+    private static volatile boolean uncertain;
     private String message = "等待框架连接";
+    private String failure;
     private LinearLayout root, content;
-    private int bg, fg, muted, surface, blue, purple, amber, green, red, line;
+    private int bg, fg, muted, surface, blue, amber, green, red, line, soft, accentInk;
 
     @Override public void onCreate(Bundle state) {
         dark = getSharedPreferences("ui",0).getBoolean("dark",
@@ -65,7 +73,8 @@ public final class MainActivity extends Activity {
                     if (service == dead) service = null;
                     MainActivity activity = current.get();
                     if (activity != null) activity.runOnUiThread(() -> {
-                        activity.message = "框架连接已断开，实际状态未确认"; activity.render();
+                        activity.message = "框架连接已断开，实际状态未确认";
+                        event("注意","框架连接断开","已保存配置不能代表目标进程实际状态");activity.render();
                     });
                 }
             });
@@ -73,7 +82,8 @@ public final class MainActivity extends Activity {
         if (service != null) load(state == null); else render();
     }
 
-    @Override protected void onResume() { super.onResume(); if (root != null) render(); }
+    @Override protected void onResume() { super.onResume(); rememberProbe();if (root != null) render(); }
+    @Override public void onBackPressed() { if(page!=0){page=0;render();}else super.onBackPressed(); }
     @Override protected void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);
         state.putInt("page",page);state.putString("draft",draft.name());state.putStringArrayList("targets",new ArrayList<>(targets));
@@ -91,14 +101,21 @@ public final class MainActivity extends Activity {
     private GradientDrawable rounded(int color, int radius) {
         GradientDrawable drawable = new GradientDrawable();drawable.setColor(color);drawable.setCornerRadius(dp(radius));return drawable;
     }
+    private GradientDrawable outlined(int color,int radius,int stroke) {
+        GradientDrawable drawable=rounded(color,radius);drawable.setStroke(dp(1),stroke);return drawable;
+    }
     private Button button(String label, int id, boolean primary, Runnable action) {
-        Button view = new Button(this);view.setText(label);view.setTextSize(14);view.setAllCaps(false);view.setMinHeight(dp(48));
-        view.setId(id);view.setTextColor(new ColorStateList(new int[][]{{-android.R.attr.state_enabled},{}},new int[]{muted,primary?Color.WHITE:blue}));
-        view.setBackgroundTintList(new ColorStateList(new int[][]{{-android.R.attr.state_enabled},{}},new int[]{line,primary?blue:surface}));
+        Button view = new Button(this);view.setText(label);view.setTextSize(14);view.setAllCaps(false);view.setMinHeight(dp(52));view.setMinimumWidth(0);
+        view.setPadding(dp(10),dp(8),dp(10),dp(8));view.setId(id);
+        view.setTextColor(new ColorStateList(new int[][]{{-android.R.attr.state_enabled},{}},new int[]{muted,primary?accentInk:fg}));
+        var background=new android.graphics.drawable.StateListDrawable();
+        background.addState(new int[]{-android.R.attr.state_enabled},outlined(soft,14,line));
+        background.addState(new int[]{},outlined(primary?blue:surface,14,primary?blue:line));
+        view.setBackground(new RippleDrawable(ColorStateList.valueOf(dark?0x22ffffff:0x18000000),background,null));
         view.setOnClickListener(v->action.run());return view;
     }
     private void section(String label) {
-        TextView view=text(label,14,muted,true);view.setPadding(dp(20),dp(16),dp(20),dp(10));content.addView(view);
+        TextView view=text(label,14,fg,true);view.setPadding(0,dp(22),0,dp(10));content.addView(view);
     }
     private void row(String title,String detail,int color) {
         LinearLayout outer=new LinearLayout(this);outer.setBackgroundColor(surface);outer.setPadding(dp(16),dp(14),dp(16),dp(14));
@@ -108,69 +125,123 @@ public final class MainActivity extends Activity {
         outer.addView(labels,new LinearLayout.LayoutParams(0,-2,1));content.addView(outer);divider();
     }
     private void divider() { View v=new View(this);v.setBackgroundColor(line);content.addView(v,new LinearLayout.LayoutParams(-1,dp(1))); }
-    private void addButton(Button button) { LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(dp(16),dp(6),dp(16),dp(6));content.addView(button,p); }
-    private void note(String value,int color) { TextView view=text(value,14,color,false);view.setPadding(dp(20),dp(12),dp(20),dp(12));content.addView(view); }
+    private void addButton(Button button) { LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,dp(6),0,dp(6));content.addView(button,p); }
+    private void note(String value,int color) { TextView view=text(value,13,color,false);view.setPadding(0,dp(10),0,dp(10));content.addView(view); }
+    private void go(int next) { page=next;render(); }
+    private IconView icon(String name,String description,Runnable action) {
+        IconView view=new IconView(this,name,muted);view.setContentDescription(description);view.setFocusable(true);
+        view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);view.setOnClickListener(v->action.run());return view;
+    }
+    private void theme() { getSharedPreferences("ui",0).edit().putBoolean("dark",!dark).apply();recreate(); }
 
     private void render() {
         if(isFinishing()||isDestroyed())return;
-        bg=Color.parseColor(dark?"#0B111E":"#F4F6FB");surface=Color.parseColor(dark?"#111827":"#FFFFFF");
-        fg=Color.parseColor(dark?"#F8FAFC":"#0F172A");muted=Color.parseColor(dark?"#94A3B8":"#475569");
-        blue=Color.parseColor(dark?"#3B82F6":"#2563EB");purple=Color.parseColor(dark?"#C084FC":"#7C3AED");
-        amber=Color.parseColor(dark?"#FBBF24":"#B45309");green=Color.parseColor(dark?"#34D399":"#047857");
-        red=Color.parseColor(dark?"#FCA5A5":"#B91C1C");line=Color.parseColor(dark?"#1E293B":"#E2E8F0");
+        bg=Color.parseColor(dark?"#0B0D10":"#F6F7F9");surface=Color.parseColor(dark?"#14171C":"#FFFFFF");
+        fg=Color.parseColor(dark?"#ECEEF1":"#111418");muted=Color.parseColor(dark?"#98A1AE":"#5D6572");
+        blue=Color.parseColor(dark?"#6B9BFF":"#2563EB");accentInk=dark?bg:Color.WHITE;
+        amber=Color.parseColor(dark?"#FACC15":"#A16207");green=Color.parseColor(dark?"#4ADE80":"#15803D");
+        red=Color.parseColor(dark?"#F87171":"#B91C1C");line=Color.parseColor(dark?"#252A32":"#E3E6EB");soft=Color.parseColor(dark?"#1C2027":"#EEF0F3");
         root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(bg);
         if(Build.VERSION.SDK_INT>=30)getWindow().setDecorFitsSystemWindows(false);
+        getWindow().getDecorView().setSystemUiVisibility(dark?0:View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
         root.setOnApplyWindowInsetsListener((view,insets)->{
             if(Build.VERSION.SDK_INT>=30){var i=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());view.setPadding(i.left,i.top,i.right,i.bottom);}
             else view.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());
             return insets;
         });
-        LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setPadding(dp(20),dp(10),dp(12),dp(10));header.setBackgroundColor(surface);
-        header.addView(text(new String[]{"总览","作用范围","诊断"}[page],26,fg,true),new LinearLayout.LayoutParams(0,dp(48),1));
-        IconView theme=new IconView(this,"sun",muted);theme.setContentDescription("切换明暗主题");theme.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
-        theme.setOnClickListener(v->{getSharedPreferences("ui",0).edit().putBoolean("dark",!dark).apply();recreate();});header.addView(theme,new LinearLayout.LayoutParams(dp(48),dp(48)));root.addView(header);
-        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);
-        content=new LinearLayout(this);content.setOrientation(1);scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-        TextView status=text(busy?"正在同步…":connected()?"模块已连接 · API 102":"模块未连接",14,connected()?green:amber,true);
-        status.setId(R.id.module_status);status.setPadding(dp(20),dp(12),dp(20),dp(8));content.addView(status);
-        if(page==0)overview();else if(page==1)scopePage();else diagnostics();
-        LinearLayout nav=new LinearLayout(this);nav.setBackgroundColor(surface);
-        String[] names={"总览","作用范围","诊断"},icons={"clock","scope","pulse"};int[] ids={R.id.tab_overview,R.id.tab_scope,R.id.tab_diagnostics};
-        for(int i=0;i<3;i++){
-            final int targetPage=i;LinearLayout item=new LinearLayout(this);item.setId(ids[i]);item.setOrientation(1);item.setGravity(Gravity.CENTER);item.setMinimumHeight(dp(64));
-            if(page==i)item.setBackground(rounded(dark?0xff172554:0xffeff6ff,24));item.setContentDescription(names[i]);item.setOnClickListener(v->{page=targetPage;render();});
-            item.addView(new IconView(this,icons[i],page==i?blue:muted),new LinearLayout.LayoutParams(dp(24),dp(24)));
-            TextView caption=text(names[i],12,page==i?blue:muted,page==i);caption.setGravity(Gravity.CENTER);item.addView(caption);nav.addView(item,new LinearLayout.LayoutParams(0,-2,1));
+        if(page!=0){
+            LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setPadding(dp(4),0,dp(8),0);
+            IconView back=icon("back","返回总览",()->go(0));back.setId(R.id.tab_overview);header.addView(back,new LinearLayout.LayoutParams(dp(48),dp(56)));
+            header.addView(text(page==1?"作用范围":"诊断详情",22,fg,true),new LinearLayout.LayoutParams(0,-2,1));
+            header.addView(icon("sun","切换明暗主题",this::theme),new LinearLayout.LayoutParams(dp(48),dp(48)));root.addView(header);
         }
-        root.addView(nav);setContentView(root);root.requestApplyInsets();
+        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);
+        content=new LinearLayout(this);content.setOrientation(1);content.setPadding(dp(16),dp(16),dp(16),dp(16));
+        scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+        if(page==0)overview();else if(page==1)scopePage();else diagnostics();
+        LinearLayout actions=new LinearLayout(this);actions.setPadding(dp(16),dp(10),dp(16),dp(14));actions.setBackground(outlined(bg,0,line));
+        Button refresh=button(busy?"正在读取…":"刷新状态",R.id.refresh_status,false,()->load(false));refresh.setEnabled(!busy&&!uncertain);actions.addView(refresh,new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout.LayoutParams second=new LinearLayout.LayoutParams(0,-2,1);second.leftMargin=dp(10);
+        Button probe=button("运行探针",R.id.run_probe,false,this::runProbe);probe.setEnabled(!busy);actions.addView(probe,second);
+        root.addView(actions);setContentView(root);root.requestApplyInsets();
     }
 
     private void overview() {
-        row("目标策略："+label(draft),dirty()?"有未保存变更":connected()?"配置已读取；新目标需重启进程":"等待框架读取配置",dirty()?purple:blue);
-        row("模块结果",message,connected()?green:amber);
-        String probe=probeSummary();int newline=probe.indexOf('\n');
-        row("独立探针",newline<0?probe:probe.substring(0,newline)+" · 完整结果见诊断",muted);
+        LinearLayout hero=new LinearLayout(this);hero.setOrientation(1);hero.setPadding(dp(16),dp(6),dp(16),dp(16));hero.setBackground(outlined(surface,20,line));content.addView(hero);
+        LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);
+        top.addView(text("IPv6 控制 · LSPosed",13,muted,true),new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout badge=new LinearLayout(this);badge.setGravity(Gravity.CENTER_VERTICAL);badge.setPadding(dp(8),dp(5),dp(8),dp(5));badge.setBackground(outlined(surface,99,line));
+        int stateColor=uncertain?amber:connected()?green:muted;
+        badge.addView(new IconView(this,"shield",stateColor),new LinearLayout.LayoutParams(dp(16),dp(16)));
+        TextView status=text(busy?"读取中":uncertain?"待核对":connected()?"已连接":"未连接",12,stateColor,true);status.setId(R.id.module_status);status.setPadding(dp(4),0,0,0);badge.addView(status);top.addView(badge);
+        top.addView(icon("sun","切换明暗主题",this::theme),new LinearLayout.LayoutParams(dp(48),dp(48)));hero.addView(top);
+        TextView title=text(loaded?shortLabel(saved):"等待连接",34,fg,true);title.setPadding(0,dp(8),0,0);title.setAlpha(busy?.55f:1);hero.addView(title);
+        TextView caption=text(loaded?(uncertain?"上次读取的策略 · 保存待核对":"已保存的应用解析策略"):"尚未读取框架配置",12,muted,false);caption.setPadding(0,dp(4),0,dp(12));hero.addView(caption);
+        LinearLayout segment=new LinearLayout(this);segment.setPadding(dp(4),dp(4),dp(4),dp(4));segment.setBackground(rounded(soft,14));
+        int[] ids={R.id.policy_system,R.id.policy_ipv4_first,R.id.policy_ipv4_only};int index=0;
+        for(AddressPolicy.Mode mode:AddressPolicy.Mode.values()){
+            boolean selected=draft==mode;RadioButton choice=new RadioButton(this);choice.setId(ids[index++]);choice.setButtonDrawable((android.graphics.drawable.Drawable)null);
+            choice.setText((selected?"✓ ":"")+shortLabel(mode));choice.setTextSize(12);choice.setGravity(Gravity.CENTER);choice.setChecked(selected);choice.setPadding(dp(3),dp(8),dp(3),dp(8));choice.setMinHeight(dp(52));
+            choice.setTextColor(selected?accentInk:muted);choice.setBackground(rounded(selected?blue:soft,11));choice.setEnabled(connected()&&!busy);choice.setAlpha(choice.isEnabled()?1:.5f);
+            choice.setOnClickListener(v->{draft=mode;render();});segment.addView(choice,new LinearLayout.LayoutParams(0,-2,1));
+        }
+        hero.addView(segment);
+        TextView detail=text(dirty()?"待保存："+label(draft):description(saved),12,dirty()?amber:muted,false);detail.setPadding(0,dp(10),0,dp(12));hero.addView(detail);
+        LinearLayout cells=new LinearLayout(this);
+        metric(cells,"已存目标",loaded?savedTargets.size()+" 个":"未读取",()->go(1));
+        metric(cells,"框架",connected()?"API 102":"未连接",this::openManager);
+        metric(cells,"上次探针",probeBadge(),()->go(2));hero.addView(cells);
+        Button save=button(busy?"正在同步…":"保存并应用",R.id.save_policy,true,this::confirmSave);save.setEnabled(connected()&&!busy&&dirty());
+        LinearLayout.LayoutParams saveLayout=new LinearLayout.LayoutParams(-1,-2);saveLayout.topMargin=dp(14);hero.addView(save,saveLayout);
+        LinearLayout links=new LinearLayout(this);LinearLayout.LayoutParams linkLayout=new LinearLayout.LayoutParams(-1,-2);linkLayout.topMargin=dp(10);content.addView(links,linkLayout);
+        links.addView(button("作用范围",R.id.tab_scope,false,()->go(1)),new LinearLayout.LayoutParams(0,-2,1));
+        LinearLayout.LayoutParams right=new LinearLayout.LayoutParams(0,-2,1);right.leftMargin=dp(8);links.addView(button("诊断详情",R.id.tab_diagnostics,false,()->go(2)),right);
         if(!connected()) {
-            section("激活指引");note("1. 在 LSPosed 中启用 IPV6 Ctrl\n2. 勾选独立探针作为测试目标\n3. 重启目标应用，返回此处检查连接",muted);
+            note(uncertain?message:"在 LSPosed 中启用模块并勾选独立探针，再完全重开管理应用。",amber);
             addButton(button("打开 LSPosed",View.NO_ID,true,this::openManager));
         }
-        section("IPv6 控制策略"+(dirty()?" · 未保存":""));
-        AddressPolicy.Mode[] modes=AddressPolicy.Mode.values();
-        String[] details={"保持应用原有解析行为。","将 IPv4 排到前面，保留 IPv6 备用。","过滤 Java 解析结果中的 IPv6；可能导致 IPv6-only 服务不可用。"};
-        int[] ids={R.id.policy_system,R.id.policy_ipv4_first,R.id.policy_ipv4_only};
-        for(int i=0;i<modes.length;i++){
-            AddressPolicy.Mode mode=modes[i];RadioButton choice=new RadioButton(this);choice.setId(ids[i]);choice.setText(label(mode)+"\n"+details[i]);choice.setTextColor(fg);choice.setTextSize(15);
-            choice.setPadding(dp(16),dp(14),dp(16),dp(14));choice.setMinHeight(dp(80));choice.setChecked(draft==mode);choice.setButtonTintList(ColorStateList.valueOf(blue));choice.setEnabled(connected()&&!busy);
-            choice.setOnClickListener(v->{draft=mode;render();});content.addView(choice);divider();
+        showFailure();timeline();
+        note("仅控制作用域内的 Java 解析；不代表系统 IPv6 状态。",muted);
+    }
+
+    private void metric(LinearLayout parent,String name,String value,Runnable action) {
+        LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(dp(10),dp(8),dp(10),dp(8));box.setBackground(rounded(soft,12));
+        box.addView(text(name,11,muted,false));TextView result=text(value,13,fg,true);result.setSingleLine(true);result.setEllipsize(android.text.TextUtils.TruncateAt.END);box.addView(result);
+        box.setContentDescription(name+"，"+value);box.setFocusable(true);box.setOnClickListener(v->action.run());
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-2,1);if(parent.getChildCount()>0)p.leftMargin=dp(8);parent.addView(box,p);
+    }
+    private void showFailure() {
+        if(failure==null)return;
+        LinearLayout alert=new LinearLayout(this);alert.setOrientation(1);alert.setPadding(dp(14),dp(12),dp(14),dp(12));alert.setBackground(outlined(surface,14,red));
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.topMargin=dp(14);content.addView(alert,p);
+        alert.addView(text("操作未完成",14,red,true));TextView detail=text(failure,13,fg,false);detail.setPadding(0,dp(6),0,dp(8));alert.addView(detail);
+        LinearLayout actions=new LinearLayout(this);alert.addView(actions);
+        if(!uncertain){Button retry=button("重新读取",View.NO_ID,false,()->load(false));retry.setEnabled(!busy);actions.addView(retry,new LinearLayout.LayoutParams(0,-2,1));}
+        actions.addView(button("收起提示",View.NO_ID,false,()->{failure=null;render();}),new LinearLayout.LayoutParams(0,-2,1));
+    }
+    private static void event(String kind,String title,String detail) {
+        synchronized(events){events.addFirst(new Event(System.currentTimeMillis(),kind,title,detail));while(events.size()>40)events.removeLast();}
+    }
+    private void timeline() {
+        List<Event> snapshot;synchronized(events){snapshot=new ArrayList<>(events);}
+        LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);heading.setPadding(dp(4),dp(22),dp(4),dp(10));
+        heading.addView(text("操作时间线",14,fg,true),new LinearLayout.LayoutParams(0,-2,1));heading.addView(text("本次会话 "+snapshot.size()+" 条",12,muted,false));content.addView(heading);
+        if(snapshot.isEmpty())note("暂无记录。刷新后显示实际读取结果。",muted);
+        for(Event e:snapshot){
+            int color=switch(e.kind){case "错误"->red;case "注意"->amber;case "指令"->blue;case "确认","检测"->green;default->muted;};
+            LinearLayout item=new LinearLayout(this);content.addView(item);
+            FrameLayout rail=new FrameLayout(this);item.addView(rail,new LinearLayout.LayoutParams(dp(18),-1));
+            View track=new View(this);track.setBackgroundColor(line);FrameLayout.LayoutParams trackP=new FrameLayout.LayoutParams(dp(2),-1,Gravity.CENTER_HORIZONTAL);rail.addView(track,trackP);
+            View dot=new View(this);GradientDrawable circle=outlined(bg,99,color);circle.setStroke(dp(2),color);dot.setBackground(circle);FrameLayout.LayoutParams dotP=new FrameLayout.LayoutParams(dp(10),dp(10),Gravity.TOP|Gravity.CENTER_HORIZONTAL);dotP.topMargin=dp(13);rail.addView(dot,dotP);
+            LinearLayout labels=new LinearLayout(this);labels.setOrientation(1);labels.setPadding(dp(8),dp(6),0,dp(12));item.addView(labels,new LinearLayout.LayoutParams(0,-2,1));
+            TextView stamp=text(DateFormat.getTimeInstance(DateFormat.MEDIUM).format(new Date(e.time))+"   "+e.kind,11,color,false);stamp.setTypeface(Typeface.MONOSPACE);labels.addView(stamp);
+            labels.addView(text(e.title,14,fg,true));if(!e.detail.isEmpty())labels.addView(text(e.detail,12,muted,false));
         }
-        note("所选目标 "+targets.size()+" 个。仅影响作用域内的 Java 解析，不拦截 Native 直连或系统底层流量。",muted);
-        addButton(button("保存并应用策略",R.id.save_policy,true,this::confirmSave));
-        content.getChildAt(content.getChildCount()-1).setEnabled(connected()&&!busy&&dirty());
-        Button reset=button("恢复默认策略",R.id.reset_policy,false,()->{draft=AddressPolicy.Mode.SYSTEM;confirmSave();});reset.setEnabled(connected()&&!busy);addButton(reset);
     }
 
     private void scopePage() {
         note("先选择目标，再请求 LSPosed 作用域，最后保存配置。新加入的目标需完全重启。",muted);
+        note(message,connected()?muted:amber);showFailure();
         section("当前目标");Set<String> displayed=new LinkedHashSet<>();displayed.add(PROBE);displayed.addAll(targets);
         for(String pkg:displayed){
             CheckBox check=new CheckBox(this);check.setText(appLabel(pkg)+"\n"+(scope.contains(pkg)?"LSPosed 已授权":"尚未确认作用域"));check.setTextSize(15);check.setTextColor(fg);
@@ -185,14 +256,11 @@ public final class MainActivity extends Activity {
     }
 
     private void diagnostics() {
+        showFailure();
         row("框架服务",service==null?"未连接，不能确认模块激活":message,connected()?green:amber);
-        row("已保存策略",label(saved)+" · "+savedTargets.size()+" 个目标",blue);
+        row("已保存策略",loaded?label(saved)+" · "+savedTargets.size()+" 个目标":"尚未读取",blue);
         section("独立进程实测");TextView result=text(probeSummary(),14,fg,false);result.setId(R.id.probe_result);result.setPadding(dp(20),dp(12),dp(20),dp(12));result.setTextIsSelectable(true);content.addView(result);
-        addButton(button("运行独立探针",R.id.run_probe,true,()->{
-            try{startActivity(new Intent().setClassName(PROBE,PROBE+".ProbeActivity"));}
-            catch(Exception e){notice("请先安装同版本的探针 APK。");}
-        }));
-        addButton(button("刷新框架与配置",View.NO_ID,false,()->load(false)));
+        Button reset=button("恢复跟随系统",R.id.reset_policy,false,()->{draft=AddressPolicy.Mode.SYSTEM;confirmSave();});reset.setEnabled(connected()&&!busy);addButton(reset);
         addButton(button("导出脱敏诊断",View.NO_ID,false,()->{
             String report="IPV6 Ctrl 0.1.0\n策略="+saved+"\n目标数="+savedTargets.size()+"\n"+probeSummary();
             startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT,report),"分享前请复核诊断内容"));
@@ -206,6 +274,34 @@ public final class MainActivity extends Activity {
     }
 
     private String label(AddressPolicy.Mode mode) { return switch(mode){case SYSTEM->"跟随系统";case IPV4_FIRST->"优先使用 IPv4";case IPV4_ONLY->"过滤 IPv6 解析结果";}; }
+    private String shortLabel(AddressPolicy.Mode mode) { return switch(mode){case SYSTEM->"跟随系统";case IPV4_FIRST->"IPv4 优先";case IPV4_ONLY->"过滤 IPv6";}; }
+    private String description(AddressPolicy.Mode mode) { return switch(mode){case SYSTEM->"保持所选应用的原有解析行为。";case IPV4_FIRST->"IPv4 排在前面，保留 IPv6 备用。";case IPV4_ONLY->"过滤所选应用的 Java IPv6 解析结果。";}; }
+    private String probeBadge() {
+        SharedPreferences ui=getSharedPreferences("ui",0);String raw=ui.getString("probe_report",null);
+        if(raw==null)return "未检测";
+        if(ui.getLong("probe_time",0)<savedAt)return "需重测";
+        try{
+            JSONObject report=new JSONObject(raw);String hook=report.optString("hook");
+            if(report.has("error"))return "检测失败";
+            if(!hook.startsWith("api=102;"))return "未注入";
+            if(hook.contains("selected=false"))return "未选目标";
+            if(!report.optBoolean("ipv4"))return "IPv4 失败";
+            return report.optInt("v6Count")==0?"仅 IPv4":report.optInt("firstFamily")==4?"IPv4 首选":"含 IPv6";
+        }catch(Exception e){return "记录损坏";}
+    }
+    private void rememberProbe() {
+        SharedPreferences ui=getSharedPreferences("ui",0);long at=ui.getLong("probe_time",0);
+        if(at<=seenProbeTime)return;seenProbeTime=at;
+        if(at<SESSION_STARTED)return;
+        String result=probeBadge();boolean bad=result.equals("检测失败")||result.equals("记录损坏");
+        event(bad?"错误":result.equals("未注入")||result.equals("未选目标")?"注意":"检测","独立探针已返回",result+" · 完整结果见诊断");
+    }
+    private void runProbe() {
+        try{
+            startActivity(new Intent().setClassName(PROBE,PROBE+".ProbeActivity"));
+            event("指令","启动独立探针","仅解析回环地址，等待目标进程报告");
+        }catch(Exception e){event("错误","探针启动失败","请安装同版本、同签名的探针 APK");notice("请先安装同版本的探针 APK。");render();}
+    }
     private String appLabel(String pkg) {
         try{return getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(pkg,0)).toString();}
         catch(Exception e){return pkg.equals(PROBE)?"独立探针（尚未安装）":pkg;}
@@ -216,18 +312,23 @@ public final class MainActivity extends Activity {
         if(intent==null)notice("请从 LSPosed 通知或管理器入口打开模块设置。");else startActivity(intent);
     }
     private void load(boolean resetDraft) {
-        XposedService bound=service;if(bound==null){render();return;}
+        if(uncertain){failure="保存结果尚未确认，请完全关闭应用后重开核对。";render();return;}
+        XposedService bound=service;if(bound==null){
+            failure="框架未连接。请在 LSPosed 中启用模块，再完全重开管理应用。";
+            event("注意","无法读取框架配置","当前框架服务未连接");render();return;
+        }
         work(()->{
             if(bound.getApiVersion()<102){service=null;throw new IllegalStateException("当前框架 API 低于 102");}
             SharedPreferences prefs=bound.getRemotePreferences("policy");
             saved=AddressPolicy.parse(prefs.getString("mode","SYSTEM"));savedTargets=new HashSet<>(prefs.getStringSet("targets",Collections.emptySet()));savedAt=prefs.getLong("saved_at",0);
             scope=new HashSet<>(bound.getScope());if(resetDraft){draft=saved;targets=new HashSet<>(savedTargets);}
             message=bound.getFrameworkName()+" "+bound.getFrameworkVersion()+" · 配置已读取";
+            loaded=true;event("读取","已读取框架配置",label(saved)+" · "+savedTargets.size()+" 个目标");
         });
     }
     private void work(Runnable job) {
-        if(busy)return;busy=true;render();IO.execute(()->{
-            try{job.run();}catch(RuntimeException e){message="操作未完成："+e.getMessage();}
+        if(busy)return;busy=true;failure=null;render();IO.execute(()->{
+            try{job.run();}catch(RuntimeException e){message="操作未完成："+e.getMessage();failure=message;event("错误","操作未完成",String.valueOf(e.getMessage()));}
             runOnUiThread(()->{busy=false;render();});
         });
     }
@@ -240,6 +341,7 @@ public final class MainActivity extends Activity {
     }
     private void save() {
         final AddressPolicy.Mode next=draft;final Set<String> nextTargets=new HashSet<>(targets);final XposedService bound=service;
+        event("指令","请求保存策略",label(next)+" · "+nextTargets.size()+" 个目标");
         work(()->{
             if(bound==null)throw new IllegalStateException("框架未连接");
             Set<String> granted=new HashSet<>(bound.getScope());
@@ -250,19 +352,22 @@ public final class MainActivity extends Activity {
                 if(!bound.getRemotePreferences("policy").edit().putString("mode",next.name()).putStringSet("targets",nextTargets).putLong("saved_at",timestamp).commit())throw new IllegalStateException("框架没有确认保存");
             }catch(RuntimeException e){
                 // A lost Binder acknowledgement cannot prove whether the remote write happened.
-                uncertain=true;message="保存状态未确认。请完全关闭应用后重开核对配置；暂不能判断实际状态。";return;
+                uncertain=true;message="保存状态未确认。请完全关闭应用后重开核对配置；暂不能判断实际状态。";failure=message;
+                event("错误","保存结果未确认","框架没有可靠确认，需重开应用核对");return;
             }
             saved=next;savedTargets=nextTargets;savedAt=timestamp;scope=granted;message="配置已保存；新作用域需重启目标。请运行探针核验。";
+            loaded=true;event("确认","框架已确认保存",label(next)+" · 实际效果需探针核验");
         });
     }
     private void requestScope() {
         if(!connected()||busy)return;
         List<String> requested=new ArrayList<>(targets);
         if(requested.isEmpty()){notice("请先选择目标");return;}
+        event("指令","请求 LSPosed 作用域",requested.size()+" 个所选目标");render();
         try{service.requestScope(requested,new XposedService.OnScopeEventListener(){
-            @Override public void onScopeRequestApproved(List<String> approved){runOnUiThread(()->load(false));}
-            @Override public void onScopeRequestFailed(String reason){runOnUiThread(()->notice("作用域未授权："+reason));}
-        });}catch(RuntimeException e){notice("作用域请求未完成，请检查框架连接。");}
+            @Override public void onScopeRequestApproved(List<String> approved){runOnUiThread(()->{event("确认","框架已批准作用域",approved.size()+" 个目标 · 新目标需重启进程");load(false);});}
+            @Override public void onScopeRequestFailed(String reason){runOnUiThread(()->{event("注意","作用域请求未通过",reason);notice("作用域未授权："+reason);render();});}
+        });}catch(RuntimeException e){event("错误","作用域请求未完成","请检查框架连接");notice("作用域请求未完成，请检查框架连接。");render();}
     }
     private void pickApps() {
         Intent launcher=new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER);
@@ -284,8 +389,8 @@ public final class MainActivity extends Activity {
             String title=hook.startsWith("api=102;")?"已确认探针注入":"探针未注入";
             if(report.has("error"))return "探针失败："+report.getString("error");
             boolean stale=ui.getLong("probe_time",0)<savedAt;
-            return (stale?"旧结果，请重新检测\n":"")+title+"\n检测时间："+DateFormat.getTimeInstance().format(new Date(ui.getLong("probe_time",0)))
-                    +"\nIPv4："+(report.optBoolean("ipv4")?"可解析":"失败")+"\nIPv6："+(report.optBoolean("ipv6")?"可解析":"被过滤")
+            return (stale?"旧结果，请重新检测\n":"")+title+"\n检测时间："+DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.MEDIUM).format(new Date(ui.getLong("probe_time",0)))
+                    +"\nIPv4："+(report.optBoolean("ipv4")?"可解析":"失败")+"\nIPv6："+(report.optBoolean("ipv6")?"可解析":"未返回地址")
                     +"\n返回地址：IPv4 "+report.optInt("v4Count")+" / IPv6 "+report.optInt("v6Count")+"\n首选地址：IPv"+report.optInt("firstFamily")
                     +"\n仅代表探针；实际系统 IPv6 状态未确认。";
         }catch(Exception e){return "诊断记录损坏，请重新运行探针。";}

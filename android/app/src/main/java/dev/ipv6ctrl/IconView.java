@@ -27,6 +27,13 @@ final class IconView extends View {
         canvas.translate((getWidth()-size)/2, (getHeight()-size)/2);
         canvas.scale(size / 24f, size / 24f);
         switch (name) {
+            case "back" -> {
+                Path path=new Path();path.moveTo(12,5);path.lineTo(5,12);path.lineTo(12,19);canvas.drawPath(path,paint);canvas.drawLine(5,12,20,12,paint);
+            }
+            case "shield" -> {
+                Path path=new Path();path.moveTo(12,3);path.lineTo(21,7);path.lineTo(21,12);path.cubicTo(21,17,17,20,12,22);
+                path.cubicTo(7,20,3,17,3,12);path.lineTo(3,7);path.close();canvas.drawPath(path,paint);
+            }
             case "scope" -> { canvas.drawRoundRect(3,3,13,13,2,2,paint); canvas.drawRoundRect(11,11,21,21,2,2,paint); }
             case "pulse" -> {
                 Path path = new Path(); path.moveTo(2,12); path.lineTo(7,12); path.lineTo(10,4);
