@@ -29,7 +29,7 @@ public final class MainActivity extends Activity {
     private record Event(long time, String kind, String title, String detail) {}
     // ponytail: bounded process-session history and results; no persistent probe reports.
     private static final Deque<Event> events = new ArrayDeque<>();
-    private static volatile boolean busy;
+    private static volatile String operation = "";
     private static volatile String failure;
     private static SystemIpv6.Status systemStatus;
     private static long systemReadAt, onlineStartedAt, onlineReadAt;
@@ -57,6 +57,7 @@ public final class MainActivity extends Activity {
     @Override protected void onSaveInstanceState(Bundle state) { super.onSaveInstanceState(state);state.putInt("page",page); }
     @Override protected void onDestroy() { if(current.get()==this)current.clear();super.onDestroy(); }
 
+    private static boolean busy() { return !operation.isEmpty(); }
     private int dp(float value) { return (int)(getResources().getDisplayMetrics().density*value+.5f); }
     private TextView text(String value, int size, int color, boolean bold) {
         TextView view = new TextView(this);view.setText(value);view.setTextSize(size);view.setTextColor(color);
@@ -125,11 +126,27 @@ public final class MainActivity extends Activity {
         content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(dp(16),dp(16),dp(16),dp(16));
         scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         if(page==0)systemOverview();else diagnostics();
-        LinearLayout actions=new LinearLayout(this);actions.setPadding(dp(16),dp(10),dp(16),dp(14));actions.setBackground(outlined(bg,0,line));
-        Button refresh=button(busy?"处理中…":"读取系统 · Root",R.id.refresh_status,false,()->systemAction("status"));refresh.setEnabled(!busy);actions.addView(refresh,new LinearLayout.LayoutParams(0,-2,1));
-        LinearLayout.LayoutParams second=new LinearLayout.LayoutParams(0,-2,1);second.leftMargin=dp(10);
-        Button online=button(busy?"处理中…":"联网检测",R.id.run_online,false,this::runOnline);online.setEnabled(!busy);actions.addView(online,second);
-        root.addView(actions);setContentView(root);root.requestApplyInsets();
+        setContentView(root);root.requestApplyInsets();
+    }
+
+    private Button quietButton(String label,int id,Runnable action) {
+        Button view=button(label,id,false,action);
+        view.setBackground(new RippleDrawable(ColorStateList.valueOf(dark?0x22ffffff:0x18000000),rounded(Color.TRANSPARENT,12),null));
+        view.setTextColor(new ColorStateList(new int[][]{{-android.R.attr.state_enabled},{}},new int[]{muted,blue}));view.setEnabled(!busy());return view;
+    }
+    private void loading(String label,int id) {
+        LinearLayout loading=new LinearLayout(this);loading.setId(id);loading.setGravity(Gravity.CENTER_VERTICAL);
+        loading.setPadding(0,dp(12),0,dp(12));loading.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        ProgressBar spinner=new ProgressBar(this,null,android.R.attr.progressBarStyleSmall);
+        spinner.setIndeterminateTintList(ColorStateList.valueOf(blue));spinner.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        loading.addView(spinner,new LinearLayout.LayoutParams(dp(24),dp(24)));
+        TextView caption=text(label,14,muted,false);caption.setPadding(dp(12),0,0,0);loading.addView(caption);content.addView(loading);
+    }
+    private void rootProgress() {
+        if(busy()&&!operation.equals("online"))loading(switch(operation){
+            case "block"->"正在回退到纯 IPv4…";case "restore"->"正在恢复原网络设置…";
+            case "pause"->"正在停止保持…";default->"正在读取系统状态…";
+        },R.id.system_loading);
     }
 
     private String systemTitle() {
@@ -144,30 +161,69 @@ public final class MainActivity extends Activity {
                 +"\n独立服务："+switch(systemStatus.daemon()){case "running"->"运行中";case "stopped"->"未运行，请检查模块并重启设备";default->"未安装 Runtime 模块";}
                 +"\n持续保持："+(systemStatus.managed()?"已请求接管":"未接管")+" · 上次巡检："+switch(systemStatus.lastSweep()){case "ok"->"通过";case "idle"->"待命";case "write-error","snapshot-error"->"失败，请核对";default->"未确认";};
     }
+    private boolean fallbackActive() {
+        return systemStatus!=null&&systemStatus.state().equals("blocked")&&systemStatus.managed()
+                &&systemStatus.daemon().equals("running");
+    }
+    private String fallbackStatus() {
+        if(systemStatus==null)return "状态待确认";
+        if(fallbackActive())return "已启用 · 持续保持中";
+        if(systemStatus.state().equals("blocked"))return "已回退 · 未持续保持";
+        return "尚未回退";
+    }
     private void systemOverview() {
+        content.setPadding(dp(24),dp(8),dp(24),dp(24));
         LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);
-        heading.addView(text("IPv6 控制 · 系统级 Root",14,blue,true),new LinearLayout.LayoutParams(0,-2,1));
+        heading.addView(text("IPV6 Ctrl",16,muted,true),new LinearLayout.LayoutParams(0,-2,1));
+        IconView details=icon("pulse","诊断详情",()->go(2));details.setId(R.id.tab_diagnostics);
+        heading.addView(details,new LinearLayout.LayoutParams(dp(48),dp(48)));
         heading.addView(icon("sun","切换明暗主题",this::theme),new LinearLayout.LayoutParams(dp(48),dp(48)));content.addView(heading);
-        TextView title=text(systemTitle(),32,fg,true);title.setId(R.id.module_status);content.addView(title);
-        note(systemDetail(),muted);
-        note("安装 Runtime 模块后，独立服务每 3 秒检查各接口并修正漂移；退出客户端后继续保持。",fg);
-        Button block=button(busy?"处理中…":"禁用并持续保持 IPv6",R.id.block_system,true,()->new AlertDialog.Builder(this)
-                .setTitle("禁用并持续保持 IPv6？").setMessage("需要已安装并运行的 Runtime 模块。先保存原参数，再禁用并交给独立服务逐接口保持。影响全设备及已有连接，IPv6-only 网络可能断网。恢复会先停止接管再恢复快照。仅本次开机有效；巡检之间仍有窗口，切网后请检测。")
-                .setNegativeButton("取消",null).setPositiveButton("保存快照并保持",(d,w)->systemAction("block")).show());
-        block.setEnabled(!busy);addButton(block);
-        Button restore=button("恢复修改前系统配置",R.id.restore_system,false,()->systemAction("restore"));
-        restore.setEnabled(!busy);addButton(restore);
-        Button pause=button("停止持续保持（不恢复参数）",R.id.pause_system,false,()->systemAction("pause"));
-        pause.setEnabled(!busy);addButton(pause);
-        String badge=onlineBadge();row("外网 IPv6",badge,badge.equals("IPv6 可联网")?green:amber);
-        addButton(button("诊断详情",R.id.tab_diagnostics,false,()->go(2)));
-        showFailure();timeline();
-        note("独立服务巡检本机参数，不会后台请求联网 API。重启后默认不接管；API 失败不等于系统阻断成功。",muted);
+        TextView title=text("回退到纯 IPv4",32,fg,true);title.setPadding(0,dp(32),0,dp(8));content.addView(title);
+        note("停用 IPv6，让设备使用 IPv4 网络。",muted);
+        LinearLayout status=new LinearLayout(this);status.setGravity(Gravity.CENTER_VERTICAL);status.setPadding(0,dp(18),0,dp(18));
+        int color=fallbackActive()?green:muted;
+        View dot=new View(this);dot.setBackground(rounded(color,99));status.addView(dot,new LinearLayout.LayoutParams(dp(8),dp(8)));
+        TextView state=text(fallbackStatus(),15,color,true);state.setId(R.id.module_status);state.setPadding(dp(10),0,0,0);
+        status.addView(state,new LinearLayout.LayoutParams(0,-2,1));
+        status.addView(quietButton("刷新状态",R.id.refresh_status,()->systemAction("status")),new LinearLayout.LayoutParams(-2,dp(48)));content.addView(status);
+        if(systemStatus!=null)note("上次确认 "+DateFormat.getTimeInstance(DateFormat.MEDIUM).format(new Date(systemReadAt)),muted);
+        Button block=button(fallbackActive()?"已启用纯 IPv4":"启用纯 IPv4",R.id.block_system,true,this::confirmFallback);
+        block.setEnabled(!busy()&&!fallbackActive());addButton(block);
+        addButton(quietButton("恢复原网络设置",R.id.restore_system,()->systemAction("restore")));
+        rootProgress();
+        if(failure!=null){
+            Button error=quietButton("操作未完成 · 查看详情",R.id.failure_details,()->go(2));error.setTextColor(red);addButton(error);
+        }
+        if(systemStatus!=null&&!systemStatus.daemon().equals("running"))note("需要运行中的 Root 模块，详情见诊断页。",amber);
+        View gap=new View(this);content.addView(gap,new LinearLayout.LayoutParams(-1,dp(24)));divider();
+        networkCheck();
+    }
+    private void confirmFallback() {
+        new AlertDialog.Builder(this).setTitle("回退到纯 IPv4？")
+                .setMessage("停用设备 IPv6 并持续保持，仅本次开机有效。会先保存原设置，之后可恢复；现有连接可能中断。需要运行中的 Root 模块。")
+                .setNegativeButton("取消",null).setPositiveButton("启用纯 IPv4",(d,w)->systemAction("block")).show();
+    }
+    private void networkCheck() {
+        LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);heading.setPadding(0,dp(16),0,dp(6));
+        heading.addView(text("网络检测",16,fg,true),new LinearLayout.LayoutParams(0,-2,1));
+        heading.addView(quietButton("检测网络",R.id.run_online,this::runOnline),new LinearLayout.LayoutParams(-2,dp(48)));content.addView(heading);
+        if(operation.equals("online"))loading("正在检测网络…",R.id.network_loading);
+        else {
+            networkResult("IPv4",onlineV4);networkResult("IPv6",onlineV6);
+            String hint=onlineReadAt==0?"手动检测当前网络的连通性。":onlineStale()?"网络设置已更改，请重新检测。":"检测于 "+DateFormat.getTimeInstance(DateFormat.MEDIUM).format(new Date(onlineReadAt))+" · 切网后请重测";
+            note(hint,onlineStale()?amber:muted);
+        }
+    }
+    private void networkResult(String family,OnlineCheck.Result result) {
+        LinearLayout item=new LinearLayout(this);item.setGravity(Gravity.CENTER_VERTICAL);item.setPadding(0,dp(10),0,dp(10));
+        item.addView(text(family,15,muted,false),new LinearLayout.LayoutParams(0,-2,1));
+        boolean valid=onlineReadAt!=0&&!onlineStale();
+        item.addView(text(!valid?"未检测":result.reachable()?"可用":"未连通",15,!valid?muted:result.reachable()?green:amber,true));content.addView(item);
     }
     private void systemAction(String action) {
-        if(busy)return;
+        if(busy())return;
         event("指令",action.equals("block")?"请求系统级阻断并保持":action.equals("restore")?"请求恢复系统快照":action.equals("pause")?"请求停止持续保持":"请求读取系统状态","Root · 系统参数");
-        work(()->{
+        work(action,()->{
             systemStatus=null;
             if(!action.equals("status"))getSharedPreferences("ui",0).edit().putLong("system_changed_at",System.currentTimeMillis()).apply();
             SystemIpv6.Status result=SystemIpv6.run(getApplicationContext(),action);
@@ -183,7 +239,7 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.topMargin=dp(14);content.addView(alert,p);
         alert.addView(text("操作未完成",14,red,true));TextView detail=text(failure,13,fg,false);detail.setPadding(0,dp(6),0,dp(8));alert.addView(detail);
         LinearLayout actions=new LinearLayout(this);alert.addView(actions);
-        Button retry=button("重新读取",View.NO_ID,false,()->systemAction("status"));retry.setEnabled(!busy);actions.addView(retry,new LinearLayout.LayoutParams(0,-2,1));
+        Button retry=button("重新读取",View.NO_ID,false,()->systemAction("status"));retry.setEnabled(!busy());actions.addView(retry,new LinearLayout.LayoutParams(0,-2,1));
         actions.addView(button("收起提示",View.NO_ID,false,()->{failure=null;render();}),new LinearLayout.LayoutParams(0,-2,1));
     }
     private static void event(String kind,String title,String detail) {
@@ -209,9 +265,14 @@ public final class MainActivity extends Activity {
     private void diagnostics() {
         showFailure();
         row("系统参数",systemTitle()+"\n"+systemDetail(),blue);
-        section("客户端联网检测");
+        rootProgress();
+        addButton(quietButton("读取系统状态",R.id.refresh_status,()->systemAction("status")));
+        addButton(quietButton("停止持续保持（不恢复参数）",R.id.pause_system,()->systemAction("pause")));
+        networkCheck();
+        section("检测详情");
         TextView result=text(onlineSummary(),14,fg,false);result.setId(R.id.online_result);
         result.setPadding(dp(16),dp(12),dp(16),dp(12));result.setTextIsSelectable(true);content.addView(result);
+        timeline();
         note("每次手动向 ipify 各请求一次 IPv4 / IPv6 HTTPS API，不自动重试，不保存公网 IP。结果只代表检测时客户端到 API 的路径；VPN、切网、DNS 和 API 故障会影响结果。切网后请重测，失败不能单独证明系统阻断成功。",muted);
         addButton(button("导出脱敏诊断",View.NO_ID,false,()->{
             String report="IPV6 Ctrl "+BuildConfig.VERSION_NAME+"\n"+systemTitle()+"\n"+systemDetail()+"\n"+onlineSummary();
@@ -223,22 +284,25 @@ public final class MainActivity extends Activity {
             }catch(Exception e){notice("许可文件读取失败");}
         }));
     }
+    private boolean onlineStale() {
+        return onlineReadAt!=0&&onlineStartedAt<getSharedPreferences("ui",0).getLong("system_changed_at",0);
+    }
     private String onlineBadge() {
         if(onlineReadAt==0)return "未检测";
-        if(onlineStartedAt<getSharedPreferences("ui",0).getLong("system_changed_at",0))return "需重测";
+        if(onlineStale())return "需重测";
         if(onlineV6.reachable())return "IPv6 可联网";
         return onlineV4.reachable()?"IPv6 未连通":"网络 / API 未确认";
     }
     private String onlineSummary() {
-        if(onlineReadAt==0)return "尚未检测，点击下方“联网检测”。";
+        if(onlineReadAt==0)return "尚未检测，点击“检测网络”。";
         return onlineBadge()+"\n检测时间："+DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.MEDIUM).format(new Date(onlineReadAt))
                 +"\n外网 IPv4："+onlineV4.detail()+"\n外网 IPv6："+onlineV6.detail()
                 +"\n失败原因需结合系统参数与实际网络判断。";
     }
     private void runOnline() {
-        if(busy)return;
+        if(busy())return;
         event("指令","请求客户端联网检测","ipify IPv4 / IPv6 各一次 HTTPS 查询");
-        work(()->{
+        work("online",()->{
             onlineReadAt=0;onlineStartedAt=System.currentTimeMillis();
             OnlineCheck.Result v4=OnlineCheck.query(4),v6=OnlineCheck.query(6);
             onlineV4=v4;onlineV6=v6;onlineReadAt=System.currentTimeMillis();
@@ -246,13 +310,13 @@ public final class MainActivity extends Activity {
         });
     }
     private void notice(String value) { new AlertDialog.Builder(this).setTitle("IPV6 Ctrl").setMessage(value).setPositiveButton("知道了",null).show(); }
-    private void work(Runnable job) {
-        if(busy)return;busy=true;failure=null;render();IO.execute(()->{
+    private void work(String action,Runnable job) {
+        if(busy())return;operation=action;failure=null;render();IO.execute(()->{
             try{job.run();}catch(RuntimeException e){failure="操作未完成："+e.getMessage();event("错误","操作未完成",String.valueOf(e.getMessage()));}
             MainActivity activity=current.get();
             if(activity!=null)activity.runOnUiThread(()->{
-                busy=false;MainActivity shown=current.get();if(shown!=null)shown.render();
-            });else busy=false;
+                operation="";MainActivity shown=current.get();if(shown!=null)shown.render();
+            });else operation="";
         });
     }
 }
