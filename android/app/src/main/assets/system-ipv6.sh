@@ -1,20 +1,33 @@
 #!/system/bin/sh
-# Runtime sysctl control; no daemon, boot script, firewall or app scope changes.
+# Root controller shared by the APK and module; native helper serializes keeper and UI writes.
 umask 077
+fail() { echo "error=$1"; exit 1; }
+native_lock=false
+module=
 if [ "${1:-}" = "--test" ]; then
     # Isolated checks must explicitly supply all paths; never fall back to procfs.
     [ "$#" = 5 ] || exit 2
     conf=$2 state=$3 boot=$4 action=$5
     case "$conf:$state:$boot" in *'/proc/'*|*'/sys/'*) exit 2;; esac
+elif [ "${1:-}" = "--locked" ]; then
+    [ "$#" = 6 ] || exit 2
+    conf=$2 state=$3 boot=$4 module=$5 action=$6
+    native_lock=true
 else
     [ "$(id -u)" = 0 ] || { echo error=root-required; exit 1; }
     conf=/proc/sys/net/ipv6/conf
     state=/data/adb/ipv6ctrl-system
     boot=/proc/sys/kernel/random/boot_id
     action=${1:-status}
+    module=/data/adb/modules/ipv6_ctrl
+    # Never execute the legacy binary: it does not understand --control.
+    if [ "$(cat "$module/protocol" 2>/dev/null)" = ipv6ctrl-managed-v1 ] && [ -x "$module/ipv6_daemon" ]; then
+        exec "$module/ipv6_daemon" --control "$action"
+    fi
+    case "$action" in block|pause) fail runtime-module-required;; esac
+    module=missing
 fi
-fail() { echo "error=$1"; exit 1; }
-case "$action" in status|block|restore) ;; *) fail invalid-action;; esac
+case "$action" in status|block|restore|pause) ;; *) fail invalid-action;; esac
 [ -d "$conf" ] && [ -r "$boot" ] || fail ipv6-unavailable
 mkdir -p "$state" || fail state-unavailable
 snapshot=$state/snapshot
@@ -22,8 +35,14 @@ boot_id=$(cat "$boot")
 [ -n "$boot_id" ] || fail boot-unavailable
 case "$boot_id" in *[!a-zA-Z0-9-]*) fail invalid-boot-id;; esac
 lock=$state/lock-$boot_id
-mkdir "$lock" 2>/dev/null || fail operation-locked
-trap 'rmdir "$lock"' EXIT
+if [ "$native_lock" != true ]; then
+    mkdir "$lock" 2>/dev/null || fail operation-locked
+    trap 'rmdir "$lock"' EXIT
+    # A removed live module cannot be safely coordinated without its native lock helper.
+    if [ "$module" = missing ] && [ "$action" = restore ] && [ "$(cat "$state/managed" 2>/dev/null)" = "$boot_id" ]; then
+        fail runtime-module-required-for-restore
+    fi
+fi
 trap 'exit 1' HUP INT TERM
 if [ -f "$snapshot" ] && [ "$(head -n 1 "$snapshot")" != "$boot_id" ]; then
     # Reboot resets runtime settings; an old boot's values must never be restored.
@@ -104,9 +123,22 @@ status() {
     echo "disabled=$disabled"
     echo "total=$total"
     if [ -f "$snapshot" ]; then echo restorable=true; else echo restorable=false; fi
+    if [ -z "$module" ]; then echo daemon=fixture
+    elif [ "$module" = missing ]; then echo daemon=missing
+    elif "$module/ipv6_daemon" --check; then echo daemon=running
+    else echo daemon=stopped; fi
+    if [ "$(cat "$state/managed" 2>/dev/null)" = "$boot_id" ]; then echo managed=true; else echo managed=false; fi
+    if [ "$(head -n 1 "$state/daemon.status" 2>/dev/null)" = "$boot_id" ]; then
+        printf 'last_sweep=%s\n' "$(sed -n '2p' "$state/daemon.status")"
+    else echo last_sweep=unknown; fi
 }
 case "$action" in
     block)
+        if [ -n "$module" ]; then
+            [ ! -e "$module/disable" ] && [ ! -e "$module/remove" ] || fail runtime-module-disabled
+            "$module/ipv6_daemon" --check || fail runtime-daemon-not-running
+        fi
+        rm -f "$state/managed" || fail pause-failed
         if [ ! -f "$snapshot" ]; then capture || fail snapshot-failed; fi
         failed=0
         for name in all default; do
@@ -120,7 +152,12 @@ case "$action" in
         done
         if [ "$failed" != 0 ]; then
             if restore; then fail block-failed-rolled-back; else fail block-failed-restore-required; fi
-        fi;;
-    restore) restore || fail restore-failed-snapshot-kept;;
+        fi
+        printf '%s\n' "$boot_id" > "$state/managed.pending" && mv "$state/managed.pending" "$state/managed" || fail target-save-failed
+        ;;
+    pause) rm -f "$state/managed" || fail pause-failed;;
+    restore)
+        rm -f "$state/managed" || fail pause-failed
+        restore || fail restore-failed-snapshot-kept;;
 esac
 status || fail status-unavailable
