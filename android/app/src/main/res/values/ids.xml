@@ -5,4 +5,5 @@
     <item name="run_probe" type="id" /><item name="module_status" type="id" /><item name="probe_result" type="id" />
     <item name="refresh_status" type="id" />
     <item name="block_system" type="id" /><item name="restore_system" type="id" />
+    <item name="pause_system" type="id" />
 </resources>

@@ -8,10 +8,11 @@ import java.util.concurrent.TimeUnit;
 
 /** Fixed script via stdin: no writable executable or user text in the root command. */
 final class SystemIpv6 {
-    record Status(String state, int disabled, int total, boolean restorable) {}
+    record Status(String state, int disabled, int total, boolean restorable,
+                  String daemon, boolean managed, String lastSweep) {}
 
     static Status run(Context context, String action) {
-        if (!action.equals("status") && !action.equals("block") && !action.equals("restore"))
+        if (!action.equals("status") && !action.equals("block") && !action.equals("restore") && !action.equals("pause"))
             throw new IllegalArgumentException("无效系统操作");
         Process process = null;
         try {
@@ -44,7 +45,9 @@ final class SystemIpv6 {
             if (!state.equals("blocked") && !state.equals("enabled") && !state.equals("mixed"))
                 throw new IllegalStateException("无法确认系统状态");
             return new Status(state, Integer.parseInt(values.getProperty("disabled")),
-                    Integer.parseInt(values.getProperty("total")), Boolean.parseBoolean(values.getProperty("restorable")));
+                    Integer.parseInt(values.getProperty("total")), Boolean.parseBoolean(values.getProperty("restorable")),
+                    values.getProperty("daemon", "missing"), Boolean.parseBoolean(values.getProperty("managed")),
+                    values.getProperty("last_sweep", "unknown"));
         } catch (IllegalStateException e) { throw e; }
         catch (java.io.IOException e) {
             android.util.Log.w("IPV6CtrlRoot", "Cannot communicate with su", e);

@@ -4,7 +4,18 @@
 
 [下载 v2.0 Pre-release](https://github.com/Uncookedboots456/IPV6_ctrl/releases/tag/v2.0) · [完整使用与构建说明](android/README.md) · [旧版 daemon / WebUI 文档](docs/legacy-daemon-webui.md)
 
-## 安装与使用
+## 开发版：2.1-dev 持续保持
+
+当前分支新增独立 Root Runtime 模块，尚未发布新发行版，**v2.0 附件不会因此改变**。开发版需要配套的 `2.1-dev` App 和 Runtime zip；App 仍支持 Android 9+，本轮 Runtime 二进制只支持 arm64 / Android 11+。
+
+1. 按下方构建步骤生成两个 APK 和 `android/build/runtime/IPV6-Ctrl-runtime-2.1-dev-arm64.zip`。先恢复并停用旧版 IPv6 模块，再通过 Root 管理器安装新 zip、重启设备，并安装配套 APK。
+2. 模块服务启动后默认待命，不读取 `all` 猜测用户目标，也不自动改网络。App 读取系统后，应显示独立服务运行中。
+3. 点击“禁用并持续保持 IPv6”保存快照并显式接管。独立 daemon 每 3 秒检查所有接口，仅修正漂移；App 退出后继续运行。
+4. “停止持续保持”只解除接管；“恢复修改前系统配置”会先停止接管再恢复快照，失败保留快照。重启设备后默认不接管，旧开机的快照与目标失效。
+
+本实现没有 Zygisk 注入、联网轮询或进程重启监督。daemon 异常退出会在刷新时显示未运行；周期巡检仍有窗口，不能宣称零泄漏。当前无设备连接，新增逻辑只完成隔离测试和构建检查。详见 [Runtime 说明](module/README.md)。
+
+## v2.0 安装与使用（已发布）
 
 要求 Android 9 或以上；系统级修改需要 Root。默认使用不需要 LSPosed、应用作用域授权、`curl` 或 `wget`。
 
@@ -40,12 +51,15 @@
 使用 JDK 21、Android SDK 37.0 和 Build Tools 36.0.0，配置 `ANDROID_HOME` 或本地 `android/local.properties`：
 
 ```sh
+python3 -m unittest discover -s tests -v
+ANDROID_NDK_HOME=/path/to/android-ndk-r29 sh scripts/build_runtime.sh
+python3 scripts/package_runtime.py
 cd android
 sh tests/system_ipv6_test.sh
 ./gradlew policyTest onlineTest :app:assembleDebug :probe:assembleDebug :app:lintDebug :probe:lintDebug
 ```
 
-Windows 使用 `gradlew.bat`；隔离 shell 检查可通过 Git Bash 运行。更多说明见 [android/README.md](android/README.md)。
+Runtime 使用 NDK r29（29.0.14206865）在 Linux/WSL 构建。Windows 使用 `gradlew.bat`；独立 shell 检查可通过 Git Bash 运行。更多说明见 [android/README.md](android/README.md)。
 
 ## English
 

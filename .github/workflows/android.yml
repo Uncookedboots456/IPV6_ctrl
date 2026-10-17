@@ -18,8 +18,18 @@ jobs:
           cmdline-tools-version: '15859902'
           packages: platform-tools
           log-accepted-android-sdk-licenses: false
+      - name: Check runtime on isolated files
+        run: |
+          shellcheck module/service.sh module/customize.sh module/uninstall.sh scripts/build_runtime.sh
+          python3 -m unittest discover -s tests -v
       - name: Install Android SDK packages
-        run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0'
+        run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'ndk;29.0.14206865'
+      - name: Rebuild and package Runtime module
+        run: |
+          cp module/ipv6_daemon "$RUNNER_TEMP/ipv6ctrl-runtime-expected"
+          ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865" sh scripts/build_runtime.sh
+          cmp "$RUNNER_TEMP/ipv6ctrl-runtime-expected" module/ipv6_daemon
+          python3 scripts/package_runtime.py
       - name: Check policy and build APKs
         working-directory: android
         run: |
@@ -27,6 +37,8 @@ jobs:
           sh gradlew --no-daemon policyTest onlineTest :app:assembleDebug :probe:assembleDebug :app:lintDebug :probe:lintDebug
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: ipv6-ctrl-debug-apks
-          path: android/*/build/outputs/apk/debug/*.apk
+          name: ipv6-ctrl-runtime-and-debug-apks
+          path: |
+            android/*/build/outputs/apk/debug/*.apk
+            android/build/runtime/*.zip
           if-no-files-found: error

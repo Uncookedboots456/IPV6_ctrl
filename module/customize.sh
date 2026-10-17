@@ -1,5 +1,4 @@
 #!/system/bin/sh
-SKIPMOUNT=true
 [ "$ARCH" = arm64 ] || abort "Only arm64 is supported by this build."
 [ "$API" -ge 30 ] || abort "Android 11 or newer is required by the runtime binary."
 # A live worker may still execute the previous binary/controller. Upgrade after restore + reboot.

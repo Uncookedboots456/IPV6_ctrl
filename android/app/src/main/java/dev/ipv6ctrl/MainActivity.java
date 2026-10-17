@@ -183,36 +183,40 @@ public final class MainActivity extends Activity {
         if(systemStatus==null)return "点击读取系统以请求 Root 并核对实际接口。";
         return "上次读取："+DateFormat.getTimeInstance(DateFormat.MEDIUM).format(new Date(systemReadAt))
                 +"\n禁用项 "+systemStatus.disabled()+" / "+systemStatus.total()+"（含 all / default）"
-                +"\n"+(systemStatus.restorable()?"本次启动的修改前快照可恢复":"没有本应用可恢复的快照");
+                +"\n"+(systemStatus.restorable()?"本次启动的修改前快照可恢复":"没有本应用可恢复的快照")
+                +"\n独立服务："+switch(systemStatus.daemon()){case "running"->"运行中";case "stopped"->"未运行，请检查模块并重启设备";default->"未安装 Runtime 模块";}
+                +"\n持续保持："+(systemStatus.managed()?"已请求接管":"未接管")+" · 上次巡检："+switch(systemStatus.lastSweep()){case "ok"->"通过";case "idle"->"待命";case "write-error","snapshot-error"->"失败，请核对";default->"未确认";};
     }
     private void systemOverview() {
         note("IPv6 控制 · 系统级 Root",blue);
         TextView title=text(systemTitle(),32,fg,true);title.setId(R.id.module_status);content.addView(title);
         note(systemDetail(),muted);
-        note("禁用所有当前接口及新接口的 IPv6 默认值，无需 LSPosed 应用作用域。",fg);
-        Button block=button(busy?"处理中…":"系统级阻断 IPv6",R.id.block_system,true,()->new AlertDialog.Builder(this)
-                .setTitle("禁用系统 IPv6？").setMessage("将先保存当前参数，再通过 Root 修改所有接口的 disable_ipv6。影响全设备及现有 IPv6 连接，IPv6-only 网络可能断网。可用下方入口恢复修改前参数。仅本次开机有效；网络组件仍可能重新启用，切网后请复核。")
-                .setNegativeButton("取消",null).setPositiveButton("保存快照并禁用",(d,w)->systemAction("block")).show());
+        note("安装 Runtime 模块后，独立服务每 3 秒检查各接口并修正漂移；退出 App 后继续保持，无需应用作用域。",fg);
+        Button block=button(busy?"处理中…":"禁用并持续保持 IPv6",R.id.block_system,true,()->new AlertDialog.Builder(this)
+                .setTitle("禁用并持续保持 IPv6？").setMessage("需要已安装并运行的 Runtime 模块。先保存原参数，再禁用并交给独立服务逐接口保持。影响全设备及已有连接，IPv6-only 网络可能断网。恢复会先停止接管再恢复快照。仅本次开机有效；巡检之间仍有窗口，切网后请检测。")
+                .setNegativeButton("取消",null).setPositiveButton("保存快照并保持",(d,w)->systemAction("block")).show());
         block.setEnabled(!busy);addButton(block);
         Button restore=button("恢复修改前系统配置",R.id.restore_system,false,()->systemAction("restore"));
         restore.setEnabled(!busy);addButton(restore);
+        Button pause=button("停止持续保持（不恢复参数）",R.id.pause_system,false,()->systemAction("pause"));
+        pause.setEnabled(!busy);addButton(pause);
         String badge=probeBadge();row("外网 IPv6",badge,badge.equals("IPv6 可联网")?green:amber);
         addButton(button("诊断详情",R.id.tab_diagnostics,false,()->go(2)));
         addButton(button("高级：应用解析策略（可选）",R.id.tab_scope,false,()->go(3)));
         if(loaded&&saved!=AddressPolicy.Mode.SYSTEM&&!savedTargets.isEmpty())note("仍有已保存的应用解析策略，可在高级入口恢复跟随系统并重启目标。",amber);
         showFailure();timeline();
-        note("不会后台轮询或开机强制应用。sysctl 读取与联网结果分别展示；API 失败不等于系统阻断成功。",muted);
+        note("独立服务巡检本机参数，不会后台请求联网 API。重启后默认不接管；API 失败不等于系统阻断成功。",muted);
     }
     private void systemAction(String action) {
         if(busy)return;
-        event("指令",action.equals("block")?"请求系统级阻断":action.equals("restore")?"请求恢复系统快照":"请求读取系统状态","Root · 不申请应用作用域");
+        event("指令",action.equals("block")?"请求系统级阻断并保持":action.equals("restore")?"请求恢复系统快照":action.equals("pause")?"请求停止持续保持":"请求读取系统状态","Root · 不申请应用作用域");
         work(()->{
             systemStatus=null;
             if(!action.equals("status"))getSharedPreferences("ui",0).edit().putLong("system_changed_at",System.currentTimeMillis()).apply();
             SystemIpv6.Status result=SystemIpv6.run(this,action);
             systemStatus=result;systemReadAt=System.currentTimeMillis();
             if(!action.equals("status"))getSharedPreferences("ui",0).edit().putLong("system_changed_at",systemReadAt).apply();
-            event("确认",action.equals("status")?"已读取系统参数":action.equals("block")?"系统参数已写入并核对":"修改前参数已恢复并核对",systemTitle()+" · 请手动联网检测");
+            event("确认",action.equals("status")?"已读取系统参数与服务状态":action.equals("block")?"系统参数已核对并请求持续接管":action.equals("pause")?"已停止接管，参数未恢复":"已停止接管并恢复修改前参数",systemTitle()+" · 请手动联网检测");
         });
     }
 
@@ -315,7 +319,7 @@ public final class MainActivity extends Activity {
         Button local=button("仅检测本机解析（不联网）",View.NO_ID,false,()->runProbe(false));local.setEnabled(!busy);addButton(local);
         Button reset=button("清除应用解析策略",R.id.reset_policy,false,()->{draft=AddressPolicy.Mode.SYSTEM;confirmSave();});reset.setEnabled(connected()&&!busy);addButton(reset);
         addButton(button("导出脱敏诊断",View.NO_ID,false,()->{
-            String report="IPV6 Ctrl 2.0\n"+systemTitle()+"\n"+systemDetail()+"\n应用策略="+saved+"\n目标数="+savedTargets.size()+"\n"+probeSummary();
+            String report="IPV6 Ctrl 2.1-dev\n"+systemTitle()+"\n"+systemDetail()+"\n应用策略="+saved+"\n目标数="+savedTargets.size()+"\n"+probeSummary();
             startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT,report),"分享前请复核诊断内容"));
         }));
         addButton(button("开源许可",View.NO_ID,false,()->{
