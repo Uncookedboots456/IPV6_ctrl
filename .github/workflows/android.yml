@@ -30,15 +30,15 @@ jobs:
           ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865" sh scripts/build_runtime.sh
           cmp "$RUNNER_TEMP/ipv6ctrl-runtime-expected" module/ipv6_daemon
           python3 scripts/package_runtime.py
-      - name: Check policy and build APKs
+      - name: Check controller and build client
         working-directory: android
         run: |
           sh tests/system_ipv6_test.sh
-          sh gradlew --no-daemon policyTest onlineTest :app:assembleDebug :probe:assembleDebug :app:lintDebug :probe:lintDebug
+          sh gradlew --no-daemon onlineTest :app:assembleDebug :app:lintDebug
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: ipv6-ctrl-runtime-and-debug-apks
+          name: ipv6-ctrl-runtime-and-client
           path: |
-            android/*/build/outputs/apk/debug/*.apk
+            android/app/build/outputs/apk/debug/*.apk
             android/build/runtime/*.zip
           if-no-files-found: error

@@ -1,54 +1,34 @@
 # IPV6 Ctrl
 
-面向 Android Root 设备的 IPv6 控制应用。**v2.0 为预发布版本**：默认提供系统级 IPv6 禁用、修改前快照恢复与联网 API 检测；LSPosed 按应用解析策略作为可选高级功能。
+Android Root 设备的系统级 IPv6 控制客户端。当前源码为 **2.1-dev**：一个客户端 APK 加一个 Root Runtime 模块，联网检测直接在客户端运行，已移除按应用控制、LSPosed Hook、作用域请求和独立探针 APK。
 
-[下载 v2.0 Pre-release](https://github.com/Uncookedboots456/IPV6_ctrl/releases/tag/v2.0) · [完整使用与构建说明](android/README.md) · [旧版 daemon / WebUI 文档](docs/legacy-daemon-webui.md)
+[客户端使用与构建](android/README.md) · [Runtime 说明](module/README.md) · [旧版 daemon / WebUI](docs/legacy-daemon-webui.md)
 
-## 开发版：2.1-dev 持续保持
+## 开发版安装与使用
 
-当前分支新增独立 Root Runtime 模块，尚未发布新发行版，**v2.0 附件不会因此改变**。开发版需要配套的 `2.1-dev` App 和 Runtime zip；App 仍支持 Android 9+，本轮 Runtime 二进制只支持 arm64 / Android 11+。
+开发版尚未发布。已发布的 [v2.0 Pre-release](https://github.com/Uncookedboots456/IPV6_ctrl/releases/tag/v2.0) 仍为单次修改、两个 APK 的旧方案，附件保持原样；参见 [v2.0 说明](docs/v2.0-release.md)。请使用同一源码构建的 2.1-dev 客户端与 Runtime zip。
 
-1. 按下方构建步骤生成两个 APK 和 `android/build/runtime/IPV6-Ctrl-runtime-2.1-dev-arm64.zip`。先恢复并停用旧版 IPv6 模块，再通过 Root 管理器安装新 zip、重启设备，并安装配套 APK。
-2. 模块服务启动后默认待命，不读取 `all` 猜测用户目标，也不自动改网络。App 读取系统后，应显示独立服务运行中。
-3. 点击“禁用并持续保持 IPv6”保存快照并显式接管。独立 daemon 每 3 秒检查所有接口，仅修正漂移；App 退出后继续运行。
-4. “停止持续保持”只解除接管；“恢复修改前系统配置”会先停止接管再恢复快照，失败保留快照。重启设备后默认不接管，旧开机的快照与目标失效。
+1. Runtime 支持 arm64 / Android 11+，客户端支持 Android 9+。先在旧客户端恢复系统配置；若使用过应用策略，先恢复“跟随系统”、停用本模块并清空其 LSPosed 作用域，再重启目标进程或设备。升级后可卸载旧的 `dev.ipv6ctrl.probe`。
+2. 通过 Root 管理器安装 `IPV6-Ctrl-runtime-2.1-dev-arm64.zip`，重启设备并安装客户端。开机服务默认待命，不猜测用户目标或自动禁用 IPv6。
+3. 客户端点击“读取系统 · Root”授权并检查所有接口。点击“禁用并持续保持 IPv6”，保存修改前快照、逐项写入并核对后，独立服务每 3 秒检查各接口，仅修正偏离值；退出客户端后继续运行。
+4. 点击“联网检测”，客户端向 ipify 的 IPv4 / IPv6 HTTPS API 各查询一次，结果在首页及诊断页查看。首次打开、后台服务均不会自动请求 API，无自动重试或备用服务，不保存公网 IP。
+5. “停止持续保持”解除接管并保留参数；“恢复修改前系统配置”先停止接管，再恢复快照。恢复失败保留快照，重启设备后旧目标与快照失效、默认不接管。卸载前请先恢复并核对。
 
-本实现没有 Zygisk 注入、联网轮询或进程重启监督。daemon 异常退出会在刷新时显示未运行；周期巡检仍有窗口，不能宣称零泄漏。当前无设备连接，新增逻辑只完成隔离测试和构建检查。详见 [Runtime 说明](module/README.md)。
+## 范围与限制
 
-## v2.0 安装与使用（已发布）
+- 系统控制修改 `all`、`default` 和各接口的 `disable_ipv6`，影响全设备及已有连接；IPv6-only 网络可能断网。恢复参数后，地址和连接仍需系统重新建立。
+- 周期纠偏存在窗口，不能保证零泄漏。daemon 异常退出没有自动重启监督，需在客户端刷新检查服务状态；切网后应重新读取和检测。
+- IPv6 API 成功说明检测时客户端到 API 的 IPv6 路径可用；失败可能由 DNS、VPN、网络或 API 故障引起，不能单凭失败证明阻断成功。
+- 联网结果只保留在当前客户端进程中，系统修改后标记需重测；不会复用旧独立探针报告。时间线最多 40 条实际会话事件。
+- 使用系统原生 Java UI，无第三方运行库。Root Runtime 与客户端不通过应用 Hook 或 Zygisk 通信。
 
-要求 Android 9 或以上；系统级修改需要 Root。默认使用不需要 LSPosed、应用作用域授权、`curl` 或 `wget`。
+## 验证与构建
 
-1. 从预发布页面下载并安装 `IPV6-Ctrl-v2.0-debug.apk`（主应用）和 `IPV6-Ctrl-Probe-v2.0-debug.apk`（独立探针）。两个 APK 使用同一调试签名，发布页同时提供 SHA-256 校验文件。
-2. 打开主应用，点击“读取系统 · Root”，在 Root 管理器中授权。若提示无法调用 `su`，检查超级用户授权及针对本应用的 Root 隐藏设置。
-3. 点击“系统级阻断 IPv6”。应用先保存本次开机的接口参数快照，再禁用并回读核对；恢复时选择“恢复修改前系统配置”。
-4. 点击“联网检测”，通过独立探针查询 IPv4 / IPv6 API，再返回诊断查看结果。
+已通过主机临时文件联测、Android 真机隔离测试，以及 KernelSU 安装/一次真实开机、显式接管、强制停止客户端、新接口纠偏、暂停、蜂窝 → Wi-Fi → 蜂窝切换和快照恢复检查。网络开关已还原，Runtime 留在待命状态。
 
-已有 Android 应用用户应同时更新两个 APK，升级保留原有应用策略。若出现签名不一致，请先用原应用恢复系统配置，再处理旧安装；卸载前也请先恢复。旧版 Root 模块与新版 APK 是不同运行方式，新版不会自动安装或启动旧 daemon。
+验收中曾出现一次重复接管回读失败并安全回滚；后续三次命令行重复操作及完整客户端复测通过，但该异常原因尚未定位。当前网络在 IPv6 参数全部启用时，IPv6 API 仍解析失败，尚无真实 IPv6 API 成功的正向证据。**本轮修改暂留本地，未推送或发布**；详见[真机验收记录](docs/device-validation-20261017.md)。
 
-## 功能与范围
-
-| 功能 | 行为 |
-| --- | --- |
-| 默认系统级控制 | 通过 Root 修改 `all`、`default` 和各接口的 `disable_ipv6`，影响全设备；不需要逐个应用申请作用域。 |
-| 修改前快照 | 保存同次开机的原参数；写入失败时尝试回滚，恢复失败则保留快照供重试。 |
-| 手动联网检测 | ipify IPv4 / IPv6 HTTPS API 各请求一次；无后台轮询、自动重试或多服务探测，不保存公网 IP。 |
-| 可选应用策略 | 高级入口提供跟随系统、IPv4 优先和 IPv6 解析过滤，需要 LSPosed API 102；默认推荐作用域为空。 |
-| 状态与时间线 | 系统参数、回环解析和外网结果分别展示；仅记录当前应用会话的真实操作。 |
-
-## 预发布限制
-
-- 系统修改**仅本次开机有效**，没有开机强制应用或常驻守护。Android 网络组件仍可能重新启用接口，切换 Wi-Fi、蜂窝、VPN、热点后请重新读取并检测。
-- 禁用 IPv6 会影响已有连接，IPv6-only 网络可能断网。恢复的是参数，地址与连接需要系统网络栈重新建立。
-- API 失败可能来自 DNS、网络、VPN 或服务故障，**不能单凭失败判断系统阻断成功**。联网结果只代表当前网络到该 API 的路径。
-- 应用级策略仅控制选定应用的 Java 地址解析，不覆盖 Native 网络栈。旧的探针过滤策略可能影响系统检测，请在高级入口和 LSPosed 中检查已有配置。
-- 附件为同签名的调试构建，供预发布测试；尚未完成真实系统恢复、切网与重启行为的完整验收，不宣称永久、全路径的 IPv6 阻断。
-
-本地与 CI 已通过策略检查、API 响应校验、临时目录中的禁用/恢复检查、Android Lint 及两个 APK 构建。隔离测试不等同于所有设备的实机兼容性验证。
-
-## 开发
-
-使用 JDK 21、Android SDK 37.0 和 Build Tools 36.0.0，配置 `ANDROID_HOME` 或本地 `android/local.properties`：
+使用 JDK 21、SDK 37.0、Build Tools 36.0.0；Runtime 使用 NDK r29（29.0.14206865）在 Linux/WSL 构建：
 
 ```sh
 python3 -m unittest discover -s tests -v
@@ -56,15 +36,13 @@ ANDROID_NDK_HOME=/path/to/android-ndk-r29 sh scripts/build_runtime.sh
 python3 scripts/package_runtime.py
 cd android
 sh tests/system_ipv6_test.sh
-./gradlew policyTest onlineTest :app:assembleDebug :probe:assembleDebug :app:lintDebug :probe:lintDebug
+./gradlew onlineTest :app:assembleDebug :app:lintDebug
 ```
 
-Runtime 使用 NDK r29（29.0.14206865）在 Linux/WSL 构建。Windows 使用 `gradlew.bat`；独立 shell 检查可通过 Git Bash 运行。更多说明见 [android/README.md](android/README.md)。
+Windows 使用 `gradlew.bat`，SDK 路径见 [Android 说明](android/README.md)。输出为一个客户端 APK 和一个 Runtime zip；没有独立探针构建任务。
 
 ## English
 
-IPV6 Ctrl v2.0 is a pre-release Android app for rooted devices. It defaults to system-wide IPv6 control with a before-change parameter snapshot and manual IPv4/IPv6 HTTPS checks. Per-app Java resolver policies remain optional and require LSPosed API 102.
+IPV6 Ctrl 2.1-dev provides system-wide Root IPv6 control through one client APK and an independent Root Runtime module. Manual IPv4/IPv6 HTTPS checks run inside the client. Per-app policies, LSPosed hooks/scopes and the standalone probe have been removed. The worker starts idle and only maintains an explicitly requested target for the current boot. Polling has a correction window; API failure alone does not prove blocking. This development version has not been released; the published v2.0 assets remain unchanged.
 
-Install both debug-signed APKs from the [v2.0 pre-release](https://github.com/Uncookedboots456/IPV6_ctrl/releases/tag/v2.0). System changes last for the current boot; network services may re-enable IPv6. Restore parameters before uninstalling. An API failure alone does not prove blocking, and full device restoration/network-transition testing is still pending. See the [Android guide](android/README.md) and [legacy module guide](docs/legacy-daemon-webui.md).
-
-许可证：[GPL-3.0-only](LICENSE)。第三方依赖与图标许可见应用内“开源许可”。
+许可证：[GPL-3.0-only](LICENSE)。图标许可见客户端“开源许可”。

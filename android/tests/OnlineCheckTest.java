@@ -1,4 +1,4 @@
-package dev.ipv6ctrl.probe;
+package dev.ipv6ctrl;
 
 public final class OnlineCheckTest {
     public static void main(String[] args) {

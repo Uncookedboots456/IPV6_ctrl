@@ -1,4 +1,4 @@
-package dev.ipv6ctrl.probe;
+package dev.ipv6ctrl;
 
 import java.net.Inet4Address;
 import java.net.InetAddress;
@@ -36,7 +36,7 @@ final class OnlineCheck {
                 if (length > 64) return new Result(false, "INVALID_RESPONSE");
                 value = new String(bytes, 0, length, StandardCharsets.US_ASCII).trim();
             }
-            // Do not retain or broadcast the public IP address.
+            // Do not retain the public IP address.
             return validAddress(value, family) ? new Result(true, "HTTPS_OK") : new Result(false, "INVALID_RESPONSE");
         } catch (Exception e) { return new Result(false, e.getClass().getSimpleName()); }
         finally { if (connection != null) connection.disconnect(); }

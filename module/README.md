@@ -14,7 +14,7 @@ python3 scripts/package_runtime.py
 
 zip 生成于 `android/build/runtime/IPV6-Ctrl-runtime-2.1-dev-arm64.zip`，包含编译后的 `ipv6_daemon`、与 APK 同源的 `control.sh`、模块服务/安装/卸载脚本；不打包旧 WebUI 或旧 daemon。CI 会重编译并要求二进制逐字节一致。
 
-仅支持 **arm64 / Android 11+**。先在旧 App 恢复参数，停用旧 IPv6 模块，再用 Magisk / KernelSU / APatch 的模块安装入口安装 zip，重启后配套使用新 App。复用原模块 ID `ipv6_ctrl`，避免同名旧模块自启；不同 ID 的其他网络模块仍需自行停用。本轮尚未实测这些管理器的安装、SELinux 和切网兼容性。
+仅支持 **arm64 / Android 11+**。先在旧 App 恢复参数，停用旧 IPv6 模块，再用 Magisk / KernelSU / APatch 的模块安装入口安装 zip，重启后配套使用新 App。复用原模块 ID `ipv6_ctrl`，避免同名旧模块自启；不同 ID 的其他网络模块仍需自行停用。已在 Android 16 / arm64、SELinux Enforcing 下实测 KernelSU 安装和一次开机，Magisk / APatch 尚未实测。
 
 ## 操作
 
@@ -30,4 +30,4 @@ zip 生成于 `android/build/runtime/IPV6-Ctrl-runtime-2.1-dev-arm64.zip`，包�
 
 巡检与 App 操作使用同一 `flock`，避免恢复与回写交错；进程被杀由内核释放锁。缺失当前开机快照时 worker 报错且不写参数。App 分别显示运行状态、请求的目标、上次巡检结果和实际接口计数，不能把“服务运行”当成所有接口永远禁用的保证。
 
-这是周期纠正，通常在下一轮修正；调度延迟或写入失败会延长窗口，**不是零泄漏方案**。控制端退出后继续保持、新接口恢复等已在临时文件联测，真实设备清后台、切网、卸载和恢复仍待验收。v2.0 已发布 APK 与 zip 不兼容；请使用本分支配套构建。
+这是周期纠正，通常在下一轮修正；调度延迟或写入失败会延长窗口，**不是零泄漏方案**。真机已验证强制停止客户端后保持、新接口纠偏、暂停、蜂窝/Wi-Fi 双向切换和快照恢复。曾发生一次重复接管回读失败并自动回滚，后续复测通过，原因仍待定位；实际卸载恢复尚未验收。详见[验收记录](../docs/device-validation-20261017.md)。v2.0 已发布 APK 与 zip 不兼容；请使用本分支配套构建。

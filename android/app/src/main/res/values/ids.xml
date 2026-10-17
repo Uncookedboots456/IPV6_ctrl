@@ -1,8 +1,6 @@
 <resources>
-    <item name="tab_overview" type="id" /><item name="tab_scope" type="id" /><item name="tab_diagnostics" type="id" />
-    <item name="policy_system" type="id" /><item name="policy_ipv4_first" type="id" /><item name="policy_ipv4_only" type="id" />
-    <item name="save_policy" type="id" /><item name="reset_policy" type="id" /><item name="target_probe" type="id" />
-    <item name="run_probe" type="id" /><item name="module_status" type="id" /><item name="probe_result" type="id" />
+    <item name="tab_overview" type="id" /><item name="tab_diagnostics" type="id" />
+    <item name="run_online" type="id" /><item name="module_status" type="id" /><item name="online_result" type="id" />
     <item name="refresh_status" type="id" />
     <item name="block_system" type="id" /><item name="restore_system" type="id" />
     <item name="pause_system" type="id" />

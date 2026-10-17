@@ -2,23 +2,8 @@ plugins {
     id 'com.android.application' version '9.2.1' apply false
 }
 
-def policyChecks = tasks.register('compilePolicyChecks', JavaCompile) {
-    source 'app/src/main/java/dev/ipv6ctrl/AddressPolicy.java', 'tests/PolicyTest.java'
-    classpath = files()
-    destinationDirectory = layout.buildDirectory.dir('policy-checks')
-    sourceCompatibility = '17'
-    targetCompatibility = '17'
-    options.encoding = 'UTF-8'
-}
-tasks.register('policyTest', JavaExec) {
-    dependsOn policyChecks
-    classpath = files(policyChecks.flatMap { it.destinationDirectory })
-    mainClass = 'dev.ipv6ctrl.PolicyTest'
-    enableAssertions = true
-}
-
 def onlineChecks = tasks.register('compileOnlineChecks', JavaCompile) {
-    source 'probe/src/main/java/dev/ipv6ctrl/probe/OnlineCheck.java', 'tests/OnlineCheckTest.java'
+    source 'app/src/main/java/dev/ipv6ctrl/OnlineCheck.java', 'tests/OnlineCheckTest.java'
     classpath = files()
     destinationDirectory = layout.buildDirectory.dir('online-checks')
     sourceCompatibility = '17'
@@ -28,6 +13,6 @@ def onlineChecks = tasks.register('compileOnlineChecks', JavaCompile) {
 tasks.register('onlineTest', JavaExec) {
     dependsOn onlineChecks
     classpath = files(onlineChecks.flatMap { it.destinationDirectory })
-    mainClass = 'dev.ipv6ctrl.probe.OnlineCheckTest'
+    mainClass = 'dev.ipv6ctrl.OnlineCheckTest'
     enableAssertions = true
 }

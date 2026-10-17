@@ -6,4 +6,4 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
 rootProject.name = 'IPV6Ctrl'
-include ':app', ':probe'
+include ':app'
