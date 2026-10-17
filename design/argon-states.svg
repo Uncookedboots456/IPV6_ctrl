@@ -1,0 +1,464 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1040" viewBox="0 0 1400 1040">
+<metadata id="lucide-license"><![CDATA[Icon reference: Lucide Icons, https://lucide.dev/license
+ISC License
+
+Copyright (c) 2026 Lucide Icons and Contributors
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+---
+
+The following Lucide icons are derived from the Feather project:
+
+airplay, alert-circle, alert-octagon, alert-triangle, aperture, arrow-down-circle, arrow-down-left, arrow-down-right, arrow-down, arrow-left-circle, arrow-left, arrow-right-circle, arrow-right, arrow-up-circle, arrow-up-left, arrow-up-right, arrow-up, at-sign, calendar, cast, check, chevron-down, chevron-left, chevron-right, chevron-up, chevrons-down, chevrons-left, chevrons-right, chevrons-up, circle, clipboard, clock, code, columns, command, compass, corner-down-left, corner-down-right, corner-left-down, corner-left-up, corner-right-down, corner-right-up, corner-up-left, corner-up-right, crosshair, database, divide-circle, divide-square, dollar-sign, download, external-link, feather, frown, hash, headphones, help-circle, info, italic, key, layout, life-buoy, link-2, link, loader, lock, log-in, log-out, maximize, meh, minimize, minimize-2, minus-circle, minus-square, minus, monitor, moon, more-horizontal, more-vertical, move, music, navigation-2, navigation, octagon, pause-circle, percent, plus-circle, plus-square, plus, power, radio, rss, search, server, share, shopping-bag, sidebar, smartphone, smile, square, table-2, tablet, target, terminal, trash-2, trash, triangle, tv, type, upload, x-circle, x-octagon, x-square, x, zoom-in, zoom-out
+
+The MIT License (MIT) (for the icons listed above)
+
+Copyright (c) 2013-present Cole Bemis
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+]]></metadata>
+  <g id="00_Canvas_And_Legend_V2_States">
+    <rect x="0" y="0" width="1400" height="1040" fill="#CBD5E1" />
+    <text x="40" y="38" fill="#0F172A" font-size="18" font-family="Noto Sans SC" font-weight="700">IPV6 Ctrl · 深色与关键状态 · 设计示例</text>
+    <g id="Semantic_State_Legend">
+      <rect x="744" y="18" width="96" height="28" rx="6" fill="#172554" stroke="#3B82F6" stroke-width="1" />
+      <circle cx="758" cy="32" r="5" fill="#60A5FA" />
+      <text x="768" y="37" fill="#93C5FD" font-size="14" font-family="Noto Sans SC" font-weight="700">深色已选</text>
+      <rect x="850" y="18" width="96" height="28" rx="6" fill="#F3E8FF" stroke="#DDD6FE" stroke-width="1" />
+      <circle cx="864" cy="32" r="5" fill="#7C3AED" />
+      <text x="874" y="37" fill="#6D28D9" font-size="14" font-family="Noto Sans SC" font-weight="700">未保存</text>
+      <rect x="956" y="18" width="96" height="28" rx="6" fill="#FEF3C7" stroke="#FCD34D" stroke-width="1" />
+      <circle cx="970" cy="32" r="5" fill="#D97706" />
+      <text x="980" y="37" fill="#B45309" font-size="14" font-family="Noto Sans SC" font-weight="700">待生效</text>
+      <rect x="1062" y="18" width="96" height="28" rx="6" fill="#D1FAE5" stroke="#6EE7B7" stroke-width="1" />
+      <circle cx="1076" cy="32" r="5" fill="#059669" />
+      <text x="1086" y="37" fill="#047857" font-size="14" font-family="Noto Sans SC" font-weight="700">已保留</text>
+      <rect x="1168" y="18" width="96" height="28" rx="6" fill="#FEE2E2" stroke="#FCA5A5" stroke-width="1" />
+      <circle cx="1182" cy="32" r="5" fill="#DC2626" />
+      <text x="1192" y="37" fill="#B91C1C" font-size="14" font-family="Noto Sans SC" font-weight="700">未激活/失败</text>
+      <rect x="1274" y="18" width="86" height="28" rx="6" fill="#E2E8F0" stroke="#94A3B8" stroke-width="1" />
+      <circle cx="1288" cy="32" r="5" fill="#64748B" />
+      <text x="1298" y="37" fill="#475569" font-size="14" font-family="Noto Sans SC" font-weight="700">不可用</text>
+    </g>
+  </g>
+
+  <g id="04_Screen_Overview_Dark">
+    <rect id="dk_bg" x="40" y="62" width="412" height="915" rx="28" fill="#0B111E" stroke="#334155" stroke-width="2" />
+    <g id="dk_statusbar">
+      <rect x="40" y="62" width="412" height="36" rx="20" fill="#111827" />
+      <text x="64" y="86" fill="#F8FAFC" font-size="14" font-family="Noto Sans SC" font-weight="700">09:41</text>
+      <path d="M372 85 L372 79 M377 85 L377 76 M382 85 L382 73 M387 85 L387 70" stroke="#F8FAFC" stroke-width="2" stroke-linecap="round" />
+      <rect x="396" y="73" width="22" height="12" rx="3" fill="none" stroke="#F8FAFC" stroke-width="1.8" />
+      <rect x="399" y="76" width="14" height="6" rx="1.5" fill="#10B981" />
+      <path d="M420 76 L420 82" stroke="#F8FAFC" stroke-width="2" stroke-linecap="round" />
+    </g>
+
+    <g id="dk_header">
+      <rect x="40" y="98" width="412" height="64" fill="#111827" />
+      <text x="60" y="138" fill="#F8FAFC" font-size="22" font-family="Noto Sans SC" font-weight="700">总览</text>
+      <rect x="118" y="116" width="166" height="30" rx="15" fill="#064E3B" stroke="#059669" stroke-width="1" />
+      <circle cx="134" cy="131" r="7" fill="#10B981" />
+      <path d="M130.5 131 L133 133.5 L138 128.5" fill="none" stroke="#064E3B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <text x="147" y="136" fill="#6EE7B7" font-size="14" font-family="Noto Sans SC" font-weight="700">模块已启用 (示例)</text>
+      <rect x="388" y="106" width="48" height="48" rx="12" fill="#1E293B" />
+      <circle cx="412" cy="130" r="4" fill="none" stroke="#CBD5E1" stroke-width="2" />
+      <path d="M412 119 L412 122 M412 138 L412 141 M401 130 L404 130 M420 130 L423 130 M404 122 L406 124 M418 136 L420 138 M420 122 L418 124 M406 136 L404 138" stroke="#CBD5E1" stroke-width="2" stroke-linecap="round" />
+      <path d="M40 162 L452 162" stroke="#1E293B" stroke-width="1" />
+    </g>
+
+    <g id="dk_pipeline_status">
+      <rect x="40" y="163" width="412" height="34" fill="#0B111E" />
+      <text x="60" y="185" fill="#94A3B8" font-size="14" font-family="Noto Sans SC" font-weight="700">状态流转 (深色示例 · 区分设定与实测)</text>
+      <rect x="40" y="197" width="412" height="84" fill="#111827" />
+      <rect x="56" y="209" width="112" height="60" rx="10" fill="#172554" stroke="#3B82F6" stroke-width="1.5" />
+      <circle cx="72" cy="227" r="5" fill="#60A5FA" />
+      <text x="82" y="232" fill="#93C5FD" font-size="14" font-family="Noto Sans SC" font-weight="700">目标策略</text>
+      <text x="68" y="256" fill="#F8FAFC" font-size="15" font-family="Noto Sans SC" font-weight="700">禁用 IPv6</text>
+      <path d="M172 239 L186 239 M181 234 L186 239 L181 244" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <rect x="190" y="209" width="112" height="60" rx="10" fill="#451A03" stroke="#D97706" stroke-width="1.5" />
+      <path d="M206 221 L212 232 L200 232 Z" fill="#F59E0B" />
+      <text x="216" y="232" fill="#FCD34D" font-size="14" font-family="Noto Sans SC" font-weight="700">模块结果</text>
+      <text x="202" y="256" fill="#FEF3C7" font-size="15" font-family="Noto Sans SC" font-weight="700">待重启生效</text>
+      <path d="M306 239 L320 239 M315 234 L320 239 L315 244" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <rect x="324" y="209" width="112" height="60" rx="10" fill="#1E293B" stroke="#475569" stroke-width="1.5" />
+      <circle cx="340" cy="227" r="6" fill="none" stroke="#94A3B8" stroke-width="2" />
+      <text x="337" y="231" fill="#CBD5E1" font-size="14" font-family="Noto Sans SC" font-weight="700">?</text>
+      <text x="350" y="232" fill="#CBD5E1" font-size="14" font-family="Noto Sans SC" font-weight="700">实际检测</text>
+      <text x="336" y="256" fill="#F8FAFC" font-size="15" font-family="Noto Sans SC" font-weight="700">未确认</text>
+      <path d="M40 281 L452 281" stroke="#1E293B" stroke-width="1" />
+    </g>
+
+    <g id="dk_policy_section">
+      <rect x="40" y="282" width="412" height="38" fill="#0B111E" />
+      <text x="60" y="306" fill="#CBD5E1" font-size="14" font-family="Noto Sans SC" font-weight="700">IPv6 控制策略</text>
+      <rect x="316" y="288" width="120" height="26" rx="13" fill="#2E1065" stroke="#7C3AED" stroke-width="1" />
+      <circle cx="330" cy="301" r="4" fill="#A855F7" />
+      <text x="340" y="306" fill="#E9D5FF" font-size="14" font-family="Noto Sans SC" font-weight="700">1 项未保存</text>
+
+      <g id="dk_opt_1_selected">
+        <rect x="40" y="320" width="412" height="90" fill="#172554" />
+        <rect x="40" y="320" width="5" height="90" fill="#3B82F6" />
+        <circle cx="68" cy="350" r="10" fill="#0B111E" stroke="#60A5FA" stroke-width="2.2" />
+        <circle cx="68" cy="350" r="5" fill="#60A5FA" />
+        <text x="88" y="348" fill="#F8FAFC" font-size="16" font-family="Noto Sans SC" font-weight="700">禁用所选应用 IPv6</text>
+        <rect x="346" y="330" width="90" height="26" rx="6" fill="#1E3A8A" stroke="#3B82F6" stroke-width="1" />
+        <text x="363" y="348" fill="#93C5FD" font-size="14" font-family="Noto Sans SC" font-weight="700">当前已选</text>
+        <text x="88" y="373" fill="#CBD5E1" font-size="14" font-family="Noto Sans SC">仅拦截所选应用网络解析，不影响系统全局</text>
+        <text x="88" y="396" fill="#93C5FD" font-size="14" font-family="Noto Sans SC" font-weight="600">恢复：切回默认并重启目标应用即可还原</text>
+        <path d="M40 410 L452 410" stroke="#1E3A8A" stroke-width="1" />
+      </g>
+
+      <g id="dk_opt_2">
+        <rect x="40" y="411" width="412" height="88" fill="#111827" />
+        <circle cx="68" cy="441" r="10" fill="#0B111E" stroke="#64748B" stroke-width="2" />
+        <text x="88" y="439" fill="#F8FAFC" font-size="16" font-family="Noto Sans SC" font-weight="700">优先使用 IPv4 连接</text>
+        <rect x="346" y="421" width="90" height="26" rx="6" fill="#064E3B" />
+        <text x="363" y="439" fill="#6EE7B7" font-size="14" font-family="Noto Sans SC" font-weight="700">原已生效</text>
+        <text x="88" y="464" fill="#94A3B8" font-size="14" font-family="Noto Sans SC">保留 IPv6 备用通道，降低纯 IPv6 环境断流</text>
+        <text x="88" y="486" fill="#94A3B8" font-size="14" font-family="Noto Sans SC">恢复：关闭规则后重开应用立即还原顺序</text>
+        <path d="M40 499 L452 499" stroke="#1E293B" stroke-width="1" />
+      </g>
+
+      <g id="dk_opt_3">
+        <rect x="40" y="500" width="412" height="88" fill="#111827" />
+        <circle cx="68" cy="530" r="10" fill="#0B111E" stroke="#64748B" stroke-width="2" />
+        <text x="88" y="528" fill="#F8FAFC" font-size="16" font-family="Noto Sans SC" font-weight="700">暂停规则 (系统默认直通)</text>
+        <text x="88" y="553" fill="#94A3B8" font-size="14" font-family="Noto Sans SC">不执行任何拦截，保持系统默认网络行为</text>
+        <text x="88" y="575" fill="#94A3B8" font-size="14" font-family="Noto Sans SC">恢复：排障首选，重启目标应用即解除干预</text>
+        <path d="M40 588 L452 588" stroke="#1E293B" stroke-width="1" />
+      </g>
+    </g>
+
+    <g id="dk_scope_summary_section">
+      <rect x="40" y="589" width="412" height="36" fill="#0B111E" />
+      <text x="60" y="612" fill="#CBD5E1" font-size="14" font-family="Noto Sans SC" font-weight="700">生效条件与关联目标</text>
+      <rect x="40" y="625" width="412" height="72" fill="#271705" />
+      <rect x="40" y="625" width="5" height="72" fill="#F59E0B" />
+      <path d="M68 646 L78 664 L58 664 Z" fill="none" stroke="#FBBF24" stroke-width="2" stroke-linejoin="round" />
+      <path d="M68 653 L68 658 M68 661 L68 662" stroke="#FBBF24" stroke-width="2" stroke-linecap="round" />
+      <text x="88" y="652" fill="#FDE68A" font-size="15" font-family="Noto Sans SC" font-weight="700">待生效：需重启目标应用或系统进程</text>
+      <text x="88" y="676" fill="#FBBF24" font-size="14" font-family="Noto Sans SC">新策略保存后不会即时中断已有连接，重启目标后生效</text>
+      <path d="M40 697 L452 697" stroke="#451A03" stroke-width="1" />
+      <rect x="40" y="698" width="412" height="72" fill="#111827" />
+      <rect x="58" y="718" width="20" height="20" rx="4" fill="none" stroke="#60A5FA" stroke-width="2" />
+      <path d="M63 738 L73 738" stroke="#60A5FA" stroke-width="2" stroke-linecap="round" />
+      <text x="88" y="726" fill="#F8FAFC" font-size="15" font-family="Noto Sans SC" font-weight="700">当前关联 3 个目标应用 (示例)</text>
+      <text x="88" y="750" fill="#94A3B8" font-size="14" font-family="Noto Sans SC">2 个普通应用、1 个待保存应用 · 点击切换至作用范围</text>
+      <path d="M424 726 L432 734 L424 742" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    </g>
+
+    <g id="dk_sticky_action_bar">
+      <rect x="40" y="772" width="412" height="114" fill="#111827" stroke="#1E293B" stroke-width="1" />
+      <rect x="56" y="788" width="122" height="48" rx="10" fill="#1E293B" stroke="#334155" stroke-width="1" />
+      <path d="M72 812 A6 6 0 1 1 78 818" fill="none" stroke="#CBD5E1" stroke-width="2" stroke-linecap="round" />
+      <path d="M72 806 L72 813 L79 813" fill="none" stroke="#CBD5E1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <text x="88" y="817" fill="#F8FAFC" font-size="15" font-family="Noto Sans SC" font-weight="700">恢复默认</text>
+      <rect x="188" y="788" width="248" height="48" rx="10" fill="#2563EB" />
+      <path d="M214 812 L219 817 L229 807" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+      <text x="242" y="817" fill="#FFFFFF" font-size="15" font-family="Noto Sans SC" font-weight="700">保存并应用策略</text>
+      <text x="56" y="864" fill="#D8B4FE" font-size="14" font-family="Noto Sans SC" font-weight="600">● 存在未保存变更 · 保存后将提示重启目标进程</text>
+    </g>
+
+    <g id="dk_bottom_nav">
+      <rect x="40" y="886" width="412" height="91" rx="20" fill="#111827" stroke="#1E293B" stroke-width="1" />
+      <rect x="64" y="896" width="104" height="48" rx="24" fill="#172554" stroke="#1D4ED8" stroke-width="1" />
+      <circle cx="90" cy="920" r="7" fill="none" stroke="#60A5FA" stroke-width="2" />
+      <text x="104" y="925" fill="#93C5FD" font-size="15" font-family="Noto Sans SC" font-weight="700">总览</text>
+      <rect x="218" y="913" width="14" height="14" rx="3" fill="none" stroke="#94A3B8" stroke-width="2" />
+      <text x="240" y="925" fill="#94A3B8" font-size="15" font-family="Noto Sans SC" font-weight="600">作用范围</text>
+      <path d="M350 920 L355 920 L358 913 L362 927 L365 920 L370 920" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <text x="376" y="925" fill="#94A3B8" font-size="15" font-family="Noto Sans SC" font-weight="600">诊断</text>
+      <rect x="192" y="962" width="108" height="4" rx="2" fill="#475569" />
+    </g>
+  </g>
+
+  <g id="05_Screen_LSPosed_Inactive">
+    <rect id="in_bg" x="494" y="62" width="412" height="915" rx="28" fill="#F4F6FB" stroke="#94A3B8" stroke-width="2" />
+    <g id="in_statusbar">
+      <rect x="494" y="62" width="412" height="36" rx="20" fill="#FFFFFF" />
+      <text x="518" y="86" fill="#0F172A" font-size="14" font-family="Noto Sans SC" font-weight="700">09:41</text>
+      <path d="M826 85 L826 79 M831 85 L831 76 M836 85 L836 73 M841 85 L841 70" stroke="#0F172A" stroke-width="2" stroke-linecap="round" />
+      <rect x="850" y="73" width="22" height="12" rx="3" fill="none" stroke="#0F172A" stroke-width="1.8" />
+      <rect x="853" y="76" width="14" height="6" rx="1.5" fill="#059669" />
+    </g>
+
+    <g id="in_header">
+      <rect x="494" y="98" width="412" height="64" fill="#FFFFFF" />
+      <text x="514" y="138" fill="#0F172A" font-size="22" font-family="Noto Sans SC" font-weight="700">总览</text>
+      <rect x="572" y="116" width="172" height="30" rx="15" fill="#FEE2E2" />
+      <circle cx="588" cy="131" r="7" fill="#DC2626" />
+      <path d="M585 128 L591 134 M591 128 L585 134" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" />
+      <text x="601" y="136" fill="#B91C1C" font-size="14" font-family="Noto Sans SC" font-weight="700">模块未激活 (示例)</text>
+      <rect x="842" y="106" width="48" height="48" rx="12" fill="#F1F5F9" />
+      <circle cx="866" cy="130" r="4" fill="none" stroke="#334155" stroke-width="2" />
+      <path d="M866 119 L866 122 M866 138 L866 141 M855 130 L858 130 M874 130 L877 130" stroke="#334155" stroke-width="2" stroke-linecap="round" />
+      <path d="M494 162 L906 162" stroke="#E2E8F0" stroke-width="1" />
+    </g>
+
+    <g id="in_pipeline_status">
+      <rect x="494" y="163" width="412" height="34" fill="#F4F6FB" />
+      <text x="514" y="185" fill="#475569" font-size="14" font-family="Noto Sans SC" font-weight="700">状态流转 (未激活引导态 · 设计示例)</text>
+      <rect x="494" y="197" width="412" height="84" fill="#FFFFFF" />
+      <rect x="510" y="209" width="112" height="60" rx="10" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1.5" />
+      <circle cx="526" cy="227" r="5" fill="#94A3B8" />
+      <text x="536" y="232" fill="#475569" font-size="14" font-family="Noto Sans SC" font-weight="700">目标策略</text>
+      <text x="522" y="256" fill="#64748B" font-size="15" font-family="Noto Sans SC" font-weight="700">暂未启用</text>
+      <path d="M626 239 L640 239 M635 234 L640 239 L635 244" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <rect x="644" y="209" width="112" height="60" rx="10" fill="#FEE2E2" stroke="#FCA5A5" stroke-width="1.5" />
+      <circle cx="660" cy="227" r="5" fill="#DC2626" />
+      <text x="670" y="232" fill="#B91C1C" font-size="14" font-family="Noto Sans SC" font-weight="700">模块结果</text>
+      <text x="656" y="256" fill="#991B1B" font-size="15" font-family="Noto Sans SC" font-weight="700">未挂载</text>
+      <path d="M760 239 L774 239 M769 234 L774 239 L769 244" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <rect x="778" y="209" width="112" height="60" rx="10" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1.5" />
+      <circle cx="794" cy="227" r="5" fill="#64748B" />
+      <text x="804" y="232" fill="#334155" font-size="14" font-family="Noto Sans SC" font-weight="700">实际检测</text>
+      <text x="790" y="256" fill="#0F172A" font-size="15" font-family="Noto Sans SC" font-weight="700">未检测</text>
+      <path d="M494 281 L906 281" stroke="#E2E8F0" stroke-width="1" />
+    </g>
+
+    <g id="in_steps_section">
+      <rect x="494" y="282" width="412" height="38" fill="#F4F6FB" />
+      <text x="514" y="306" fill="#334155" font-size="14" font-family="Noto Sans SC" font-weight="700">LSPosed 激活引导步骤</text>
+      <rect x="762" y="288" width="128" height="26" rx="13" fill="#FEE2E2" />
+      <text x="778" y="306" fill="#B91C1C" font-size="14" font-family="Noto Sans SC" font-weight="700">需先完成激活</text>
+
+      <g id="in_step_1">
+        <rect x="494" y="320" width="412" height="76" fill="#FFFFFF" />
+        <rect x="494" y="320" width="5" height="76" fill="#2563EB" />
+        <circle cx="524" cy="348" r="12" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.8" />
+        <text x="520" y="353" fill="#1D4ED8" font-size="14" font-family="Noto Sans SC" font-weight="700">1</text>
+        <text x="546" y="348" fill="#0F172A" font-size="16" font-family="Noto Sans SC" font-weight="700">在 LSPosed 管理器中启用模块</text>
+        <text x="546" y="376" fill="#475569" font-size="14" font-family="Noto Sans SC">进入模块列表打开 IPV6 Ctrl 开关，无需额外安装插件</text>
+        <path d="M494 396 L906 396" stroke="#E2E8F0" stroke-width="1" />
+      </g>
+
+      <g id="in_step_2">
+        <rect x="494" y="397" width="412" height="76" fill="#FFFFFF" />
+        <rect x="494" y="397" width="5" height="76" fill="#2563EB" />
+        <circle cx="524" cy="425" r="12" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.8" />
+        <text x="520" y="430" fill="#1D4ED8" font-size="14" font-family="Noto Sans SC" font-weight="700">2</text>
+        <text x="546" y="425" fill="#0F172A" font-size="16" font-family="Noto Sans SC" font-weight="700">勾选需要控制的目标应用</text>
+        <text x="546" y="453" fill="#475569" font-size="14" font-family="Noto Sans SC">建议先选单个普通应用验证，避免盲目勾选系统组件</text>
+        <path d="M494 473 L906 473" stroke="#E2E8F0" stroke-width="1" />
+      </g>
+
+      <g id="in_step_3">
+        <rect x="494" y="474" width="412" height="76" fill="#FFFFFF" />
+        <rect x="494" y="474" width="5" height="76" fill="#2563EB" />
+        <circle cx="524" cy="502" r="12" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.8" />
+        <text x="520" y="507" fill="#1D4ED8" font-size="14" font-family="Noto Sans SC" font-weight="700">3</text>
+        <text x="546" y="502" fill="#0F172A" font-size="16" font-family="Noto Sans SC" font-weight="700">强行停止目标应用并返回刷新</text>
+        <text x="546" y="530" fill="#475569" font-size="14" font-family="Noto Sans SC">重启目标进程后点击底部“重新检测”，即可解锁策略</text>
+        <path d="M494 550 L906 550" stroke="#E2E8F0" stroke-width="1" />
+      </g>
+    </g>
+
+    <g id="in_disabled_policy_section">
+      <rect x="494" y="551" width="412" height="38" fill="#F4F6FB" />
+      <text x="514" y="575" fill="#64748B" font-size="14" font-family="Noto Sans SC" font-weight="700">IPv6 控制策略</text>
+      <rect x="752" y="557" width="138" height="26" rx="13" fill="#E2E8F0" />
+      <rect x="766" y="566" width="10" height="8" rx="2" fill="none" stroke="#475569" stroke-width="1.8" />
+      <path d="M768 566 L768 563 A3 3 0 0 1 774 563 L774 566" fill="none" stroke="#475569" stroke-width="1.8" />
+      <text x="782" y="575" fill="#475569" font-size="14" font-family="Noto Sans SC" font-weight="700">未激活不可用</text>
+
+      <rect x="494" y="589" width="412" height="60" fill="#F8FAFC" />
+      <circle cx="522" cy="619" r="9" fill="#E2E8F0" stroke="#CBD5E1" stroke-width="2" />
+      <text x="542" y="615" fill="#94A3B8" font-size="15" font-family="Noto Sans SC" font-weight="700">禁用所选应用 IPv6</text>
+      <text x="542" y="637" fill="#94A3B8" font-size="14" font-family="Noto Sans SC">完成上方模块激活后可选择此策略</text>
+      <rect x="818" y="605" width="72" height="26" rx="6" fill="#E2E8F0" />
+      <text x="833" y="623" fill="#64748B" font-size="14" font-family="Noto Sans SC" font-weight="600">已锁定</text>
+      <path d="M494 649 L906 649" stroke="#E2E8F0" stroke-width="1" />
+
+      <rect x="494" y="650" width="412" height="60" fill="#F8FAFC" />
+      <circle cx="522" cy="680" r="9" fill="#E2E8F0" stroke="#CBD5E1" stroke-width="2" />
+      <text x="542" y="676" fill="#94A3B8" font-size="15" font-family="Noto Sans SC" font-weight="700">优先使用 IPv4 连接</text>
+      <text x="542" y="698" fill="#94A3B8" font-size="14" font-family="Noto Sans SC">完成上方模块激活后可选择此策略</text>
+      <rect x="818" y="666" width="72" height="26" rx="6" fill="#E2E8F0" />
+      <text x="833" y="684" fill="#64748B" font-size="14" font-family="Noto Sans SC" font-weight="600">已锁定</text>
+      <path d="M494 710 L906 710" stroke="#E2E8F0" stroke-width="1" />
+
+      <rect x="494" y="711" width="412" height="60" fill="#F1F5F9" />
+      <circle cx="522" cy="741" r="9" fill="#FFFFFF" stroke="#64748B" stroke-width="2" />
+      <circle cx="522" cy="741" r="4" fill="#64748B" />
+      <text x="542" y="737" fill="#475569" font-size="15" font-family="Noto Sans SC" font-weight="700">跟随系统（模块未介入）</text>
+      <text x="542" y="759" fill="#64748B" font-size="14" font-family="Noto Sans SC">模块未激活时不接管任何应用请求</text>
+    </g>
+
+    <g id="in_sticky_action_bar">
+      <rect x="494" y="772" width="412" height="114" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1" />
+      <rect x="510" y="788" width="246" height="48" rx="10" fill="#2563EB" />
+      <path d="M534 806 L544 806 L544 816 M544 806 L533 817" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <text x="556" y="817" fill="#FFFFFF" font-size="15" font-family="Noto Sans SC" font-weight="700">打开 LSPosed 激活指引</text>
+      <rect x="768" y="788" width="122" height="48" rx="10" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1.5" />
+      <text x="800" y="817" fill="#334155" font-size="15" font-family="Noto Sans SC" font-weight="700">重新检测</text>
+      <text x="510" y="864" fill="#64748B" font-size="14" font-family="Noto Sans SC" font-weight="600">● 策略应用按钮已停用，完成激活引导后自动恢复</text>
+    </g>
+
+    <g id="in_bottom_nav">
+      <rect x="494" y="886" width="412" height="91" rx="20" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1" />
+      <rect x="518" y="896" width="104" height="48" rx="24" fill="#EFF6FF" />
+      <circle cx="544" cy="920" r="7" fill="none" stroke="#2563EB" stroke-width="2" />
+      <text x="558" y="925" fill="#1D4ED8" font-size="15" font-family="Noto Sans SC" font-weight="700">总览</text>
+      <rect x="672" y="913" width="14" height="14" rx="3" fill="none" stroke="#64748B" stroke-width="2" />
+      <text x="694" y="925" fill="#475569" font-size="15" font-family="Noto Sans SC" font-weight="600">作用范围</text>
+      <path d="M804 920 L809 920 L812 913 L816 927 L819 920 L824 920" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <text x="830" y="925" fill="#475569" font-size="15" font-family="Noto Sans SC" font-weight="600">诊断</text>
+      <rect x="646" y="962" width="108" height="4" rx="2" fill="#94A3B8" />
+    </g>
+  </g>
+
+  <g id="06_Screen_Apply_Failed">
+    <rect id="fl_bg" x="948" y="62" width="412" height="915" rx="28" fill="#F4F6FB" stroke="#94A3B8" stroke-width="2" />
+    <g id="fl_statusbar">
+      <rect x="948" y="62" width="412" height="36" rx="20" fill="#FFFFFF" />
+      <text x="972" y="86" fill="#0F172A" font-size="14" font-family="Noto Sans SC" font-weight="700">09:41</text>
+      <path d="M1280 85 L1280 79 M1285 85 L1285 76 M1290 85 L1290 73 M1295 85 L1295 70" stroke="#0F172A" stroke-width="2" stroke-linecap="round" />
+      <rect x="1304" y="73" width="22" height="12" rx="3" fill="none" stroke="#0F172A" stroke-width="1.8" />
+      <rect x="1307" y="76" width="14" height="6" rx="1.5" fill="#059669" />
+    </g>
+
+    <g id="fl_header">
+      <rect x="948" y="98" width="412" height="64" fill="#FFFFFF" />
+      <text x="968" y="138" fill="#0F172A" font-size="22" font-family="Noto Sans SC" font-weight="700">总览</text>
+      <rect x="1026" y="116" width="172" height="30" rx="15" fill="#FEE2E2" />
+      <circle cx="1042" cy="131" r="7" fill="#DC2626" />
+      <path d="M1039 128 L1045 134 M1045 128 L1039 134" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" />
+      <text x="1055" y="136" fill="#B91C1C" font-size="14" font-family="Noto Sans SC" font-weight="700">保存失败 (示例)</text>
+      <rect x="1296" y="106" width="48" height="48" rx="12" fill="#F1F5F9" />
+      <circle cx="1320" cy="130" r="4" fill="none" stroke="#334155" stroke-width="2" />
+      <path d="M1320 119 L1320 122 M1320 138 L1320 141 M1309 130 L1312 130 M1328 130 L1331 130" stroke="#334155" stroke-width="2" stroke-linecap="round" />
+      <path d="M948 162 L1360 162" stroke="#E2E8F0" stroke-width="1" />
+    </g>
+
+    <g id="fl_pipeline_status">
+      <rect x="948" y="163" width="412" height="34" fill="#F4F6FB" />
+      <text x="968" y="185" fill="#475569" font-size="14" font-family="Noto Sans SC" font-weight="700">状态流转 (保存失败回退态 · 设计示例)</text>
+      <rect x="948" y="197" width="412" height="84" fill="#FFFFFF" />
+      <rect x="964" y="209" width="112" height="60" rx="10" fill="#FEE2E2" stroke="#FCA5A5" stroke-width="1.5" />
+      <path d="M976 223 L984 231 M984 223 L976 231" stroke="#B91C1C" stroke-width="2" stroke-linecap="round" />
+      <text x="990" y="232" fill="#B91C1C" font-size="14" font-family="Noto Sans SC" font-weight="700">本次变更</text>
+      <text x="976" y="256" fill="#991B1B" font-size="15" font-family="Noto Sans SC" font-weight="700">未保存</text>
+      <path d="M1080 239 L1094 239 M1089 234 L1094 239 L1089 244" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <rect x="1098" y="209" width="112" height="60" rx="10" fill="#D1FAE5" stroke="#6EE7B7" stroke-width="1.5" />
+      <path d="M1110 227 L1114 231 L1121 223" fill="none" stroke="#047857" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <text x="1126" y="232" fill="#047857" font-size="14" font-family="Noto Sans SC" font-weight="700">模块结果</text>
+      <text x="1110" y="256" fill="#065F46" font-size="15" font-family="Noto Sans SC" font-weight="700">原策略保留</text>
+      <path d="M1214 239 L1228 239 M1223 234 L1228 239 L1223 244" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <rect x="1232" y="209" width="112" height="60" rx="10" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1.5" />
+      <circle cx="1248" cy="227" r="5" fill="#64748B" />
+      <text x="1258" y="232" fill="#334155" font-size="14" font-family="Noto Sans SC" font-weight="700">实际检测</text>
+      <text x="1244" y="256" fill="#0F172A" font-size="15" font-family="Noto Sans SC" font-weight="700">未确认</text>
+      <path d="M948 281 L1360 281" stroke="#E2E8F0" stroke-width="1" />
+    </g>
+
+    <g id="fl_error_banner_section">
+      <rect x="948" y="282" width="412" height="36" fill="#F4F6FB" />
+      <text x="968" y="305" fill="#991B1B" font-size="14" font-family="Noto Sans SC" font-weight="700">失败原因与回退说明</text>
+      <rect x="948" y="318" width="412" height="108" fill="#FEF2F2" />
+      <rect x="948" y="318" width="5" height="108" fill="#DC2626" />
+      <circle cx="976" cy="348" r="11" fill="#FEE2E2" />
+      <path d="M972 344 L980 352 M980 344 L972 352" stroke="#B91C1C" stroke-width="2.2" stroke-linecap="round" />
+      <text x="998" y="352" fill="#991B1B" font-size="16" font-family="Noto Sans SC" font-weight="700">保存未完成，原配置已保留</text>
+      <text x="998" y="380" fill="#B91C1C" font-size="14" font-family="Noto Sans SC">保存未完成，请检查模块连接后重试</text>
+      <text x="998" y="406" fill="#047857" font-size="14" font-family="Noto Sans SC" font-weight="700">已保留原配置：优先使用 IPv4</text>
+      <path d="M948 426 L1360 426" stroke="#FECACA" stroke-width="1" />
+    </g>
+
+    <g id="fl_policy_rollback_section">
+      <rect x="948" y="427" width="412" height="36" fill="#F4F6FB" />
+      <text x="968" y="450" fill="#334155" font-size="14" font-family="Noto Sans SC" font-weight="700">IPv6 控制策略 (当前保留状态)</text>
+
+      <g id="fl_opt_1_failed">
+        <rect x="948" y="463" width="412" height="78" fill="#FFFFFF" />
+        <rect x="948" y="463" width="5" height="78" fill="#DC2626" />
+        <circle cx="976" cy="493" r="10" fill="#FFFFFF" stroke="#DC2626" stroke-width="2" />
+        <text x="996" y="492" fill="#0F172A" font-size="16" font-family="Noto Sans SC" font-weight="700">禁用所选应用 IPv6</text>
+        <rect x="1244" y="473" width="100" height="26" rx="6" fill="#FEE2E2" />
+        <text x="1259" y="491" fill="#B91C1C" font-size="14" font-family="Noto Sans SC" font-weight="700">本次未保存</text>
+        <text x="996" y="520" fill="#B91C1C" font-size="14" font-family="Noto Sans SC">未能保存此项，可点击下方重试</text>
+        <path d="M948 541 L1360 541" stroke="#E2E8F0" stroke-width="1" />
+      </g>
+
+      <g id="fl_opt_2_retained">
+        <rect x="948" y="542" width="412" height="78" fill="#ECFDF5" />
+        <rect x="948" y="542" width="5" height="78" fill="#059669" />
+        <circle cx="976" cy="572" r="10" fill="#FFFFFF" stroke="#059669" stroke-width="2.2" />
+        <circle cx="976" cy="572" r="5" fill="#059669" />
+        <text x="996" y="571" fill="#064E3B" font-size="16" font-family="Noto Sans SC" font-weight="700">优先使用 IPv4 连接</text>
+        <rect x="1244" y="552" width="100" height="26" rx="6" fill="#D1FAE5" />
+        <text x="1259" y="570" fill="#047857" font-size="14" font-family="Noto Sans SC" font-weight="700">原策略保留</text>
+        <text x="996" y="599" fill="#047857" font-size="14" font-family="Noto Sans SC" font-weight="600">原配置未变更，实际状态请重新检测</text>
+        <path d="M948 620 L1360 620" stroke="#A7F3D0" stroke-width="1" />
+      </g>
+
+      <g id="fl_opt_3_default">
+        <rect x="948" y="621" width="412" height="68" fill="#FFFFFF" />
+        <circle cx="976" cy="651" r="10" fill="#FFFFFF" stroke="#94A3B8" stroke-width="2" />
+        <text x="996" y="650" fill="#0F172A" font-size="16" font-family="Noto Sans SC" font-weight="700">暂停规则 (恢复系统默认直通)</text>
+        <text x="996" y="674" fill="#64748B" font-size="14" font-family="Noto Sans SC">恢复默认后，按提示重启目标应用</text>
+        <path d="M948 689 L1360 689" stroke="#E2E8F0" stroke-width="1" />
+      </g>
+    </g>
+
+    <g id="fl_danger_confirm_note">
+      <rect x="948" y="690" width="412" height="81" fill="#FFFBEB" />
+      <rect x="948" y="690" width="5" height="81" fill="#F59E0B" />
+      <path d="M976 712 L985 728 L967 728 Z" fill="none" stroke="#D97706" stroke-width="2" stroke-linejoin="round" />
+      <text x="996" y="720" fill="#92400E" font-size="14" font-family="Noto Sans SC" font-weight="700">高风险操作需要确认</text>
+      <text x="996" y="746" fill="#B45309" font-size="14" font-family="Noto Sans SC">选择系统组件时，先确认风险与恢复方法</text>
+    </g>
+
+    <g id="fl_sticky_action_bar">
+      <rect x="948" y="772" width="412" height="114" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1" />
+      <rect x="964" y="788" width="108" height="48" rx="10" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1" />
+      <text x="988" y="817" fill="#0F172A" font-size="15" font-family="Noto Sans SC" font-weight="700">返回总览</text>
+      <rect x="1082" y="788" width="116" height="48" rx="10" fill="#EFF6FF" stroke="#93C5FD" stroke-width="1.5" />
+      <text x="1110" y="817" fill="#1D4ED8" font-size="15" font-family="Noto Sans SC" font-weight="700">恢复默认</text>
+      <rect x="1208" y="788" width="136" height="48" rx="10" fill="#2563EB" />
+      <path d="M1228 812 A6 6 0 1 1 1234 818" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" />
+      <path d="M1228 806 L1228 812 L1234 812" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <text x="1246" y="817" fill="#FFFFFF" font-size="15" font-family="Noto Sans SC" font-weight="700">重试保存</text>
+      <text x="964" y="864" fill="#334155" font-size="14" font-family="Noto Sans SC" font-weight="600">● 返回保留原配置；恢复默认后需重启目标</text>
+    </g>
+
+    <g id="fl_bottom_nav">
+      <rect x="948" y="886" width="412" height="91" rx="20" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1" />
+      <rect x="972" y="896" width="104" height="48" rx="24" fill="#EFF6FF" />
+      <circle cx="998" cy="920" r="7" fill="none" stroke="#2563EB" stroke-width="2" />
+      <text x="1012" y="925" fill="#1D4ED8" font-size="15" font-family="Noto Sans SC" font-weight="700">总览</text>
+      <rect x="1126" y="913" width="14" height="14" rx="3" fill="none" stroke="#64748B" stroke-width="2" />
+      <text x="1148" y="925" fill="#475569" font-size="15" font-family="Noto Sans SC" font-weight="600">作用范围</text>
+      <path d="M1258 920 L1263 920 L1266 913 L1270 927 L1273 920 L1278 920" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <text x="1284" y="925" fill="#475569" font-size="15" font-family="Noto Sans SC" font-weight="600">诊断</text>
+      <rect x="1100" y="962" width="108" height="4" rx="2" fill="#94A3B8" />
+    </g>
+  </g>
+</svg>
