@@ -31,7 +31,7 @@ class RuntimeTest(unittest.TestCase):
             shutil.copyfile(ROOT / 'module/protocol', module / 'protocol')
             binary = module / 'ipv6_daemon'
             definitions = dict(PROC_CONF_DIR=conf, STATE_DIR=state, MODULE_DIR=module,
-                               BOOT_ID_PATH=boot, SHELL_PATH='/bin/sh')
+                               BOOT_ID_PATH=boot, SHELL_PATH=shutil.which('mksh') or '/bin/sh')
             subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-DTEST_BUILD',
                             *[f'-D{k}="{v}"' for k, v in definitions.items()],
                             str(ROOT / 'module/daemon.c'), '-o', str(binary)], check=True)
@@ -73,6 +73,17 @@ class RuntimeTest(unittest.TestCase):
                 wait_for(lambda: wifi.read_text().strip() == mobile.read_text().strip() == '1')
                 self.assertEqual(all_node.stat().st_mtime_ns, all_mtime)  # unchanged nodes not rewritten
                 self.assertEqual((state / 'snapshot').read_bytes(), original)
+
+                # Never enforce a target whose current-boot snapshot was lost.
+                backup = state / 'snapshot.saved'
+                with (state / 'control.lock').open('r+') as lock:
+                    fcntl.flock(lock, fcntl.LOCK_EX)
+                    (state / 'snapshot').rename(backup)
+                    wifi.write_text('0\n')
+                wait_for(lambda: 'snapshot-error' in (state / 'daemon.status').read_text())
+                self.assertEqual(wifi.read_text(), '0\n')
+                backup.rename(state / 'snapshot')
+                wait_for(lambda: wifi.read_text().strip() == '1')
 
                 control('pause')
                 wifi.write_text('0\n')
