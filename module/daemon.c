@@ -108,6 +108,12 @@ static void report(const char *boot, const char *result)
 
 int main(int argc, char **argv)
 {
+#ifdef TEST_BUILD
+    if (argc == 2 && strcmp(argv[1], "--test-info") == 0) {
+        printf("conf=%s\nstate=%s\nboot=%s\nmodule=%s\n", PROC_CONF_DIR, STATE_DIR, BOOT_ID_PATH, MODULE_DIR);
+        return 0;
+    }
+#endif
 #ifndef TEST_BUILD
     if (getuid() != 0) { puts("error=root-required"); return 1; }
 #endif
