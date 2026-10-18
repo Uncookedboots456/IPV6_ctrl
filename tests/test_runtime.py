@@ -63,10 +63,35 @@ class RuntimeTest(unittest.TestCase):
                 self.assertEqual(control('status')['managed'], 'false')
                 self.assertEqual(all_node.read_text(), '0\n')  # startup is idle
                 self.assertNotEqual(subprocess.run([str(binary)]).returncode, 0)  # singleton
-                self.assertEqual(control('block')['managed'], 'true')
+                self.assertEqual(control('toggle')['managed'], 'true')
                 original = (state / 'snapshot').read_bytes()
                 control('block')
                 self.assertEqual((state / 'snapshot').read_bytes(), original)
+                # ON means all zero, even when the original snapshot contained disabled nodes.
+                self.assertEqual(control('enable')['state'], 'enabled')
+                self.assertFalse((state / 'managed').exists())
+                self.assertEqual((state / 'snapshot').read_bytes(), original)
+                time.sleep(3.3)
+                self.assertEqual(wifi.read_text(), '0\n')
+                self.assertEqual(control('toggle')['managed'], 'true')
+                wifi.write_text('0\n')  # a mixed state during takeover still toggles ON
+                self.assertEqual(control('toggle')['state'], 'enabled')
+                self.assertFalse((state / 'managed').exists())
+                self.assertEqual((state / 'snapshot').read_bytes(), original)
+                self.assertEqual(control('toggle')['state'], 'blocked')
+                # Brief sweep/control contention is waited out, not randomly rejected.
+                with (state / 'control.lock').open('r+') as lock:
+                    fcntl.flock(lock, fcntl.LOCK_EX)
+                    waiting = subprocess.Popen([str(binary), '--control', 'status'], stdout=subprocess.PIPE)
+                    time.sleep(.1); self.assertIsNone(waiting.poll())
+                    fcntl.flock(lock, fcntl.LOCK_UN)
+                self.assertEqual(waiting.communicate(timeout=3)[0].count(b'state=blocked'), 1)
+                self.assertEqual(waiting.returncode, 0)
+                with (state / 'control.lock').open('r+') as lock:
+                    fcntl.flock(lock, fcntl.LOCK_EX)
+                    before_toggle=wifi.read_bytes()
+                    self.assertEqual(control('toggle', False)['error'], 'operation-locked')
+                    self.assertEqual(wifi.read_bytes(), before_toggle)
                 all_mtime = all_node.stat().st_mtime_ns
                 wifi.write_text('0\n')
                 mobile = node('rmnet0', 0)
@@ -98,6 +123,9 @@ class RuntimeTest(unittest.TestCase):
                 # Restore must stop takeover even when a node cannot be restored.
                 control('block')
                 wifi.unlink(); wifi.mkdir()
+                control('enable', False)
+                self.assertTrue((state / 'snapshot').exists())
+                self.assertFalse((state / 'managed').exists())
                 control('restore', False)
                 self.assertTrue((state / 'snapshot').exists())
                 self.assertFalse((state / 'managed').exists())

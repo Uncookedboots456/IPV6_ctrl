@@ -46,6 +46,20 @@ cmp "$root/state/snapshot" "$root/snapshot.saved"
 node wlan0 0; node rmnet0 0
 wait_value wlan0 1; wait_value rmnet0 1
 echo 'PASS repeated block/single-interface drift/new interface'
+control enable > "$root/result"
+grep -qx state=enabled "$root/result"
+[ ! -e "$root/state/managed" ]
+cmp "$root/state/snapshot" "$root/snapshot.saved"
+sleep 3.5; [ "$(value wlan0)" = 0 ]
+control toggle > "$root/result"
+grep -qx state=blocked "$root/result"
+node wlan0 0
+control toggle > "$root/result"
+grep -qx state=enabled "$root/result"
+[ ! -e "$root/state/managed" ]
+cmp "$root/state/snapshot" "$root/snapshot.saved"
+control toggle > "$root/result"
+echo 'PASS explicit enable/atomic toggle/partial drift/snapshot retained'
 control pause > "$root/result"
 node wlan0 0; sleep 3.5
 [ "$(value wlan0)" = 0 ]
@@ -55,6 +69,8 @@ control restore > "$root/result"
 echo 'PASS pause/restore without keeper race'
 control block > "$root/result"
 rm "$root/conf/wlan0/disable_ipv6"; mkdir "$root/conf/wlan0/disable_ipv6"
+if control enable > "$root/result" 2>&1; then echo 'FAIL invalid enable'; exit 1; fi
+[ -e "$root/state/snapshot" ] && [ ! -e "$root/state/managed" ]
 if control restore > "$root/result" 2>&1; then echo 'FAIL invalid restore'; exit 1; fi
 [ -e "$root/state/snapshot" ] && [ ! -e "$root/state/managed" ]
 rmdir "$root/conf/wlan0/disable_ipv6"; node wlan0 1

@@ -1,6 +1,9 @@
 package dev.ipv6ctrl;
 
 import android.app.Activity;
+import android.app.StatusBarManager;
+import android.content.ComponentName;
+import android.graphics.drawable.Icon;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.res.ColorStateList;
@@ -50,7 +53,18 @@ public final class MainActivity extends Activity {
         current=new WeakReference<>(this);
         render();
     }
-    @Override protected void onResume() { super.onResume();if(root!=null)render(); }
+    @Override protected void onResume() { super.onResume();syncSystemReading();if(root!=null)render(); }
+    @Override public void onWindowFocusChanged(boolean focused) {
+        super.onWindowFocusChanged(focused);if(focused&&root!=null&&syncSystemReading())render();
+    }
+    private boolean syncSystemReading() {
+        boolean changed=false;
+        SystemIpv6.Reading reading=SystemIpv6.latest;
+        if(reading.time()>systemReadAt){systemStatus=reading.status();systemReadAt=reading.time();failure=reading.error();changed=true;}
+        String tileError=getSharedPreferences("ui",0).getString("tile_error",null);
+        if(tileError!=null){failure=tileError;getSharedPreferences("ui",0).edit().remove("tile_error").apply();changed=true;}
+        return changed;
+    }
     @android.annotation.SuppressLint("GestureBackNavigation")
     @Override public void onBackPressed() { back(); }
     private void back() { if(page!=0){page=0;render();}else finish(); }
@@ -225,10 +239,8 @@ public final class MainActivity extends Activity {
         event("指令",action.equals("block")?"请求系统级阻断并保持":action.equals("restore")?"请求恢复系统快照":action.equals("pause")?"请求停止持续保持":"请求读取系统状态","Root · 系统参数");
         work(action,()->{
             systemStatus=null;
-            if(!action.equals("status"))getSharedPreferences("ui",0).edit().putLong("system_changed_at",System.currentTimeMillis()).apply();
-            SystemIpv6.Status result=SystemIpv6.run(getApplicationContext(),action);
-            systemStatus=result;systemReadAt=System.currentTimeMillis();
-            if(!action.equals("status"))getSharedPreferences("ui",0).edit().putLong("system_changed_at",systemReadAt).apply();
+            try{SystemIpv6.run(getApplicationContext(),action);syncSystemReading();}
+            finally{Ipv6TileService.refreshVisible();}
             event("确认",action.equals("status")?"已读取系统参数与服务状态":action.equals("block")?"系统参数已核对并请求持续接管":action.equals("pause")?"已停止接管，参数未恢复":"已停止接管并恢复修改前参数",systemTitle()+" · 请手动联网检测");
         });
     }
@@ -278,11 +290,24 @@ public final class MainActivity extends Activity {
             String report="IPV6 Ctrl "+BuildConfig.VERSION_NAME+"\n"+systemTitle()+"\n"+systemDetail()+"\n"+onlineSummary();
             startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT,report),"分享前请复核诊断内容"));
         }));
+        addButton(quietButton("添加 ipv6 到下拉快捷设置",R.id.add_tile,this::addQuickTile));
         addButton(button("开源许可",View.NO_ID,false,()->{
             try(BufferedReader reader=new BufferedReader(new InputStreamReader(getAssets().open("licenses.txt"),java.nio.charset.StandardCharsets.UTF_8))){
                 StringBuilder all=new StringBuilder();String next;while((next=reader.readLine())!=null)all.append(next).append('\n');notice(all.toString());
             }catch(Exception e){notice("许可文件读取失败");}
         }));
+    }
+    private void addQuickTile() {
+        if(Build.VERSION.SDK_INT<33){notice("下拉快捷设置，点击编辑或 +，找到 ipv6 并添加。亮起表示 IPv6 开启，关闭表示纯 IPv4。");return;}
+        try {
+            getSystemService(StatusBarManager.class).requestAddTileService(new ComponentName(this,Ipv6TileService.class),"ipv6",
+                    Icon.createWithResource(this,R.drawable.ic_ipv6_tile),getMainExecutor(),result->{
+                if(isFinishing()||isDestroyed())return;
+                notice(result==StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED||result==StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED
+                        ?"ipv6 已添加。亮起为 IPv6 开启，关闭为纯 IPv4；长按可打开客户端。"
+                        :"未添加。也可下拉快捷设置，点击编辑或 +，手动添加 ipv6。");
+            });
+        }catch(RuntimeException error){notice("请下拉快捷设置，点击编辑或 +，手动添加 ipv6。");}
     }
     private boolean onlineStale() {
         return onlineReadAt!=0&&onlineStartedAt<getSharedPreferences("ui",0).getLong("system_changed_at",0);

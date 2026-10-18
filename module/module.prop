@@ -1,6 +1,6 @@
 id=ipv6_ctrl
 name=IPV6 Ctrl Runtime
 version=2.1-dev
-versionCode=7
+versionCode=8
 author=Uncookedboots456
 description=Independent IPv6 keeper controlled by the IPV6 Ctrl app; idle until explicitly enabled each boot.

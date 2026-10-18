@@ -13,9 +13,19 @@ run() { sh "$script" --test "$conf" "$state" "$boot" "$1"; }
 expect() { [ "$(cat "$conf/$1/disable_ipv6")" = "$2" ]; }
 node all 0; node default 0; node lo 0; node wlan0 1
 output=$(run status); printf '%s\n' "$output" | grep -qx state=mixed
-output=$(run block); printf '%s\n' "$output" | grep -qx state=blocked
+output=$(run toggle); printf '%s\n' "$output" | grep -qx state=blocked
 [ -f "$state/snapshot" ]
 cp "$state/snapshot" "$scratch/original"
+output=$(run enable); printf '%s\n' "$output" | grep -qx state=enabled
+expect wlan0 0; expect all 0
+cmp "$state/snapshot" "$scratch/original"
+output=$(run toggle); printf '%s\n' "$output" | grep -qx state=blocked
+# Partial drift while managed must turn ON, not double-toggle back to OFF.
+node wlan0 0
+output=$(run toggle); printf '%s\n' "$output" | grep -qx state=enabled
+[ ! -f "$state/managed" ]
+cmp "$state/snapshot" "$scratch/original"
+run block >/dev/null
 node rmnet0 1
 output=$(run block); printf '%s\n' "$output" | grep -qx state=blocked
 cmp "$state/snapshot" "$scratch/original"
@@ -32,6 +42,8 @@ rm "$conf/wlan0/disable_ipv6"
 mkdir "$conf/wlan0/disable_ipv6"
 if run block; then echo 'must report failed block/rollback'; exit 1; fi
 [ -f "$state/snapshot" ]
+if run enable; then echo 'must report enable failure'; exit 1; fi
+[ ! -f "$state/managed" ]
 if run restore; then echo 'must report restore failure'; exit 1; fi
 [ -f "$state/snapshot" ]
 rmdir "$conf/wlan0/disable_ipv6"

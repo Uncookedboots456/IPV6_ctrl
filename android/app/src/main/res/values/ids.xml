@@ -5,4 +5,5 @@
     <item name="block_system" type="id" /><item name="restore_system" type="id" />
     <item name="pause_system" type="id" />
     <item name="network_loading" type="id" /><item name="system_loading" type="id" /><item name="failure_details" type="id" />
+    <item name="add_tile" type="id" />
 </resources>

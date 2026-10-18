@@ -48,7 +48,7 @@ static bool matches(const char *path, const char *expected)
 
 static bool enabled_module(void)
 {
-    return matches(MODULE_DIR "/protocol", "ipv6ctrl-managed-v1") &&
+    return matches(MODULE_DIR "/protocol", "ipv6ctrl-managed-v2") &&
            access(MODULE_DIR "/disable", F_OK) != 0 && access(MODULE_DIR "/remove", F_OK) != 0;
 }
 
@@ -127,15 +127,24 @@ int main(int argc, char **argv)
         close(fd);
         return alive ? 0 : 1;
     }
-    if (!matches(MODULE_DIR "/protocol", "ipv6ctrl-managed-v1")) {
+    if (!matches(MODULE_DIR "/protocol", "ipv6ctrl-managed-v2")) {
         puts("error=module-disabled-or-missing"); return 1;
     }
     if (mkdir(STATE_DIR, 0700) != 0 && errno != EEXIST) return 1;
     if (argc == 3 && strcmp(argv[1], "--control") == 0) {
         if (strcmp(argv[2], "status") != 0 && strcmp(argv[2], "block") != 0 &&
-            strcmp(argv[2], "restore") != 0 && strcmp(argv[2], "pause") != 0) return 2;
+            strcmp(argv[2], "restore") != 0 && strcmp(argv[2], "pause") != 0 &&
+            strcmp(argv[2], "enable") != 0 && strcmp(argv[2], "toggle") != 0) return 2;
         int fd = lock_file(STATE_DIR "/control.lock", true);
-        if (fd < 0 || flock(fd, LOCK_EX | LOCK_NB) != 0) {
+        int locked = -1;
+        /* Foreground controls wait briefly for a sweep; never wait indefinitely. */
+        for (int attempt = 0; fd >= 0 && attempt < 100; attempt++) {
+            locked = flock(fd, LOCK_EX | LOCK_NB);
+            if (locked == 0 || (errno != EWOULDBLOCK && errno != EAGAIN)) break;
+            struct timespec delay = {.tv_nsec = 20000000};
+            nanosleep(&delay, NULL);
+        }
+        if (fd < 0 || locked != 0) {
             puts("error=operation-locked"); return 1;
         }
         /* Inherit the kernel lock through exec: SIGKILL cannot leave a stale mkdir lock. */

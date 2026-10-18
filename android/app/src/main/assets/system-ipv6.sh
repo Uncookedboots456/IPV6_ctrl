@@ -20,14 +20,17 @@ else
     boot=/proc/sys/kernel/random/boot_id
     action=${1:-status}
     module=/data/adb/modules/ipv6_ctrl
-    # Never execute the legacy binary: it does not understand --control.
-    if [ "$(cat "$module/protocol" 2>/dev/null)" = ipv6ctrl-managed-v1 ] && [ -x "$module/ipv6_daemon" ]; then
-        exec "$module/ipv6_daemon" --control "$action"
-    fi
-    case "$action" in block|pause) fail runtime-module-required;; esac
+    # Accept the previous Runtime for recovery; toggle needs the new protocol.
+    protocol=$(cat "$module/protocol" 2>/dev/null)
+    case "$protocol" in ipv6ctrl-managed-v1|ipv6ctrl-managed-v2)
+        case "$action:$protocol" in enable:ipv6ctrl-managed-v1|toggle:ipv6ctrl-managed-v1) fail runtime-update-required;; esac
+        [ -x "$module/ipv6_daemon" ] && exec "$module/ipv6_daemon" --control "$action"
+        ;;
+    esac
+    case "$action" in block|pause|enable|toggle) fail runtime-module-required;; esac
     module=missing
 fi
-case "$action" in status|block|restore|pause) ;; *) fail invalid-action;; esac
+case "$action" in status|block|restore|pause|enable|toggle) ;; *) fail invalid-action;; esac
 [ -d "$conf" ] && [ -r "$boot" ] || fail ipv6-unavailable
 mkdir -p "$state" || fail state-unavailable
 snapshot=$state/snapshot
@@ -109,7 +112,7 @@ restore() {
     done < "$snapshot"
     rm "$snapshot"
 }
-status() {
+read_counts() {
     total=0 disabled=0
     for path in "$conf"/*/disable_ipv6; do
         read_value "$path" || return 1
@@ -119,6 +122,10 @@ status() {
     result=mixed
     [ "$disabled" = 0 ] && result=enabled
     [ "$disabled" = "$total" ] && result=blocked
+    return 0
+}
+status() {
+    read_counts || return 1
     echo "state=$result"
     echo "disabled=$disabled"
     echo "total=$total"
@@ -132,6 +139,27 @@ status() {
         printf 'last_sweep=%s\n' "$(sed -n '2p' "$state/daemon.status")"
     else echo last_sweep=unknown; fi
 }
+apply() {
+    target=$1 failed=0
+    # all propagates: write it first, then default and current interfaces; skip unchanged values.
+    for name in all default; do
+        read_value "$conf/$name/disable_ipv6" && [ "$value" = "$target" ] ||
+            printf '%s\n' "$target" > "$conf/$name/disable_ipv6" || failed=1
+    done
+    for path in "$conf"/*/disable_ipv6; do
+        read_value "$path" && [ "$value" = "$target" ] || printf '%s\n' "$target" > "$path" || failed=1
+    done
+    for path in "$conf"/*/disable_ipv6; do
+        read_value "$path" && [ "$value" = "$target" ] || failed=1
+    done
+    [ "$failed" = 0 ]
+}
+if [ "$action" = toggle ]; then
+    # Decide from real parameters while holding the SAME kernel lock as the write.
+    read_counts || fail status-unavailable
+    if [ "$result" != blocked ] && [ "$(cat "$state/managed" 2>/dev/null)" != "$boot_id" ]; then action=block
+    else action=enable; fi
+fi
 case "$action" in
     block)
         if [ -n "$module" ]; then
@@ -140,20 +168,15 @@ case "$action" in
         fi
         rm -f "$state/managed" || fail pause-failed
         if [ ! -f "$snapshot" ]; then capture || fail snapshot-failed; fi
-        failed=0
-        for name in all default; do
-            printf '1\n' > "$conf/$name/disable_ipv6" || failed=1
-        done
-        for path in "$conf"/*/disable_ipv6; do
-            printf '1\n' > "$path" || failed=1
-        done
-        for path in "$conf"/*/disable_ipv6; do
-            read_value "$path" && [ "$value" = 1 ] || failed=1
-        done
-        if [ "$failed" != 0 ]; then
+        if ! apply 1; then
             if restore; then fail block-failed-rolled-back; else fail block-failed-restore-required; fi
         fi
         printf '%s\n' "$boot_id" > "$state/managed.pending" && mv "$state/managed.pending" "$state/managed" || fail target-save-failed
+        ;;
+    enable)
+        rm -f "$state/managed" || fail pause-failed
+        if [ ! -f "$snapshot" ]; then capture || fail snapshot-failed; fi
+        apply 0 || fail enable-failed-snapshot-kept
         ;;
     pause) rm -f "$state/managed" || fail pause-failed;;
     restore)
