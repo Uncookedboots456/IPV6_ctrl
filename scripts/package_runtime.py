@@ -13,7 +13,7 @@ def main():
         raise SystemExit('Build the arm64 runtime binary first')
     output = ROOT / 'android/build/runtime'
     output.mkdir(parents=True, exist_ok=True)
-    archive = output / 'IPV6-Ctrl-runtime-2.1-dev-arm64.zip'
+    archive = output / 'IPV6-Ctrl-runtime-v2.0-arm64.zip'
     files = ['module.prop', 'protocol', 'ipv6_daemon', 'service.sh', 'customize.sh', 'uninstall.sh']
     with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as package:
         for name in files:

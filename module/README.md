@@ -1,6 +1,6 @@
-# IPV6 Ctrl Runtime · 2.1-dev（versionCode 9）
+# IPV6 Ctrl Runtime · v2.0（versionCode 9）
 
-最小独立 Root 执行者，配套 2.1-dev / versionCode 9 App。协议字符串仍为 `ipv6ctrl-managed-v2`，已发布的 v2.0 APK/zip 资产不变。它复用 PR #1 的逐接口巡检、值变化时回写及回读检查，替换“由 all 猜测目标”的旧策略。模块和 App 之间只使用 Root 私有文件，不需要 Zygisk、应用作用域或 `nc`。
+最小独立 Root 执行者，配套 v2.0 / versionCode 9 App。协议字符串为 `ipv6ctrl-managed-v2`。它复用 PR #1 的逐接口巡检、值变化时回写及回读检查，替换“由 all 猜测目标”的旧策略。模块和 App 之间只使用 Root 私有文件，不需要 Zygisk、应用作用域或 `nc`。
 
 ## 构建与安装
 
@@ -12,7 +12,7 @@ ANDROID_NDK_HOME=/path/to/android-ndk-r29 sh scripts/build_runtime.sh
 python3 scripts/package_runtime.py
 ```
 
-zip 生成于 `android/build/runtime/IPV6-Ctrl-runtime-2.1-dev-arm64.zip`，包含编译后的 `ipv6_daemon`、与 APK 同源的 `control.sh`、模块服务/安装/卸载脚本；不打包旧 WebUI 或旧 daemon。CI 会重编译并要求二进制逐字节一致。
+zip 生成于 `android/build/runtime/IPV6-Ctrl-runtime-v2.0-arm64.zip`，包含编译后的 `ipv6_daemon`、与 APK 同源的 `control.sh`、模块服务/安装/卸载脚本；不打包旧 WebUI 或旧 daemon。CI 会重编译并要求二进制逐字节一致。
 
 仅支持 **arm64 / Android 11+**。先在旧 App 恢复参数，停用旧 IPv6 模块，再用 Magisk / KernelSU / APatch 的模块安装入口安装 zip，重启后配套使用新 App。复用原模块 ID `ipv6_ctrl`，避免同名旧模块自启；不同 ID 的其他网络模块仍需自行停用。已在 Android 16 / arm64、SELinux Enforcing 下实测 KernelSU 安装和一次开机，Magisk / APatch 尚未实测。
 

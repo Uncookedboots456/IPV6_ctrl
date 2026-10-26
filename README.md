@@ -1,17 +1,17 @@
 # IPV6 Ctrl
 
-帮助 Android Root 设备**回退到纯 IPv4** 的系统级网络控制客户端。当前源码为 **2.1-dev（versionCode 9）**：一个客户端 APK 加一个 Root Runtime 模块，联网检测直接在客户端运行，已移除按应用控制、LSPosed Hook、作用域请求和独立探针 APK。
+帮助 Android Root 设备**回退到纯 IPv4** 的系统级网络控制客户端。当前版本为 **v2.0 正式版（versionCode 9）**：一个客户端 APK 加一个 Root Runtime 模块，联网检测直接在客户端运行，已移除按应用控制、LSPosed Hook、作用域请求和独立探针 APK。
 
 支持名为 **ipv6** 的下拉快捷开关：亮起为 IPv6 开启，关闭为纯 IPv4；默认跟随系统，不自动接管，按实际状态显示。可在客户端诊断页添加，首次需授权 Root。正常切换留在下拉面板，以副标题反馈进度，不弹窗或跳页；当前版本待[真机复测](docs/quick-tile-validation-20261019.md)。快捷开关需配套本次 Runtime（协议 v2）。
 
 [客户端使用与构建](android/README.md) · [Runtime 说明](module/README.md) · [旧版 daemon / WebUI](docs/legacy-daemon-webui.md)
 
-## 开发版安装与使用
+## 安装与使用
 
-开发版尚未发布。已发布的 [v2.0 Pre-release](https://github.com/Uncookedboots456/IPV6_ctrl/releases/tag/v2.0) 仍为单次修改、两个 APK 的旧方案，附件保持原样；参见 [v2.0 说明](docs/v2.0-release.md)。请使用同一源码构建的 2.1-dev 客户端与 Runtime zip。
+相比早期 v2.0 测试版（单次修改、两个 APK，详见 [v2.0 测试版归档说明](docs/v2.0-release.md)），v2.0 正式版（versionCode 9）合并为单一客户端 APK + 独立 Root Runtime 模块，新增持续纠偏守护、跨重启持久锁定、每次打开自动检测 IPv4/IPv6 以及全新中心状态圆环 + 双开关界面。
 
 1. Runtime 支持 arm64 / Android 11+，客户端支持 Android 9+。先在旧客户端恢复系统配置；若使用过应用策略，先恢复“跟随系统”、停用本模块并清空其 LSPosed 作用域，再重启目标进程或设备。升级后可卸载旧的 `dev.ipv6ctrl.probe`。
-2. 通过 Root 管理器安装 `IPV6-Ctrl-runtime-2.1-dev-arm64.zip`，重启设备并安装客户端。开机服务默认待命，不猜测用户目标或自动禁用 IPv6。
+2. 通过 Root 管理器安装 `IPV6-Ctrl-runtime-v2.0-arm64.zip`，重启设备并安装客户端 `IPV6-Ctrl-v2.0-debug.apk`。开机服务默认待命，不猜测用户目标或自动禁用 IPv6。
 3. 首次打开客户端点击“授权 Root”授权并检查所有接口；已授权后每次打开应用都会自动只读系统参数。首页采用**中心状态圆环 + 双开关**设计：
    - **纯 IPv4 模式（开关 1）**：开启即保存本次开机快照、逐项写入并核对，独立服务每 3 秒检查各接口修正偏离值；关闭即恢复修改前设置（无快照时直接开启 IPv6）。直接点按中心大圆环也可一键切换纯 IPv4 模式。
    - **锁定（开关 2）**：开启即写入跨重启持久锁定意图（若当前尚未开启纯 IPv4 模式，会一并开启并锁定），设备重启后自动重新接管，退出客户端后仍保持；关闭即解除锁定（走 `pause`）。
@@ -52,6 +52,6 @@ Windows 使用 `gradlew.bat`，SDK 路径见 [Android 说明](android/README.md)
 
 ## English
 
-IPV6 Ctrl 2.1-dev (versionCode 9) provides system-wide Root IPv6 control through one client APK and an independent Root Runtime module. The client starts one IPv4 and one IPv6 HTTPS check on open (ipify; the public address is not stored), watches the default network for automatic foreground re-checks, and deduplicates rotation/foreground refreshes. The home action performs an explicit lock: it saves this boot's snapshot, disables IPv6, and records a cross-restart intent that is adopted on the next boot until the user pauses or restores. The quick tile keeps its current-boot toggle and does not create a cross-restart intent when switched off; switching it on clears any lock. Per-app policies, LSPosed hooks/scopes and the standalone probe have been removed. Polling has a correction window; API failure alone does not prove blocking. This development version has not been released; the published v2.0 assets remain unchanged.
+IPV6 Ctrl v2.0 (versionCode 9) provides system-wide Root IPv6 control through one client APK and an independent Root Runtime module. Every time the client is opened, it runs one IPv4 and one IPv6 HTTPS check (ipify; the public address is not stored) and reads the Root system state. The home screen features a central status ring and two switches: **Pure IPv4 Mode** (saves this boot's snapshot, disables IPv6 across interfaces, and keeps them disabled every 3 seconds; turning it off restores IPv6) and **Lock** (records a cross-restart intent adopted on the next boot until unlocked or restored). Per-app policies, LSPosed hooks/scopes, and the standalone probe have been removed. Polling has a correction window; API failure alone does not prove blocking.
 
 许可证：[GPL-3.0-only](LICENSE)。图标许可见客户端“开源许可”。
