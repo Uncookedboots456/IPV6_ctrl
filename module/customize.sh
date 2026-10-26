@@ -6,7 +6,8 @@ if [ -r /data/adb/ipv6ctrl-system/managed ] &&
    [ "$(cat /data/adb/ipv6ctrl-system/managed)" = "$(cat /proc/sys/kernel/random/boot_id)" ]; then
     abort "Restore or pause takeover in the app before updating the module."
 fi
-ui_print "- Independent worker; no network changes until enabled in the app"
+# Installation never infers or writes persistent intent; only an explicit lock does.
+ui_print "- No network change during install; a saved cross-restart lock is adopted next boot"
 ui_print "- Restore/remove old IPv6 modules first; reboot after install"
 set_perm_recursive "$MODPATH" 0 0 0755 0644
 set_perm "$MODPATH/ipv6_daemon" 0 0 0755

@@ -84,6 +84,11 @@ public final class Ipv6TileService extends TileService {
         if(status==null){showConfirmed("状态未确认 · 长按检查");return;}
         confirmed=status;
         if(getSharedPreferences("ui",0).contains("tile_error")){showConfirmed("切换失败 · 长按查看");return;}
+        boolean lockIntent=status.lockSupported()&&!ClientRules.LOCK_NONE.equals(ClientRules.lockTarget(status.desired(),true));
+        if(lockIntent&&("failed".equals(status.bootApply())||"interrupted".equals(status.bootApply()))){
+            show(Tile.STATE_INACTIVE,"锁定未生效 · 长按检查");return;
+        }
+        if(status.managed()&&!"running".equals(status.daemon())){show(Tile.STATE_INACTIVE,"保持中断 · 长按检查");return;}
         if(status.managed()){
             show(Tile.STATE_INACTIVE,status.state().equals("blocked")?"已关闭 · 纯 IPv4":"关闭保持中 · 部分接口启用");
         }else if(status.state().equals("enabled"))show(Tile.STATE_ACTIVE,"已开启");

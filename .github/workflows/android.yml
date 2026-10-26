@@ -34,7 +34,7 @@ jobs:
         working-directory: android
         run: |
           sh tests/system_ipv6_test.sh
-          sh gradlew --no-daemon onlineTest :app:assembleDebug :app:lintDebug
+          sh gradlew --no-daemon onlineTest rulesTest :app:assembleDebug :app:lintDebug
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ipv6-ctrl-runtime-and-client

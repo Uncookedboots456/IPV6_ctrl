@@ -98,12 +98,36 @@ static int lock_file(const char *path, bool create)
     return open(path, O_RDWR | O_CLOEXEC | (create ? O_CREAT : 0), 0600);
 }
 
+static bool boot_apply_result(const char *boot, char *out, size_t size)
+{
+    FILE *file = fopen(STATE_DIR "/boot_apply", "re");
+    if (!file) return false;
+    char recorded[128], state[64];
+    bool read = fgets(recorded, sizeof(recorded), file) != NULL &&
+                fgets(state, sizeof(state), file) != NULL;
+    fclose(file);
+    if (!read) return false;
+    recorded[strcspn(recorded, "\r\n")] = '\0';
+    state[strcspn(state, "\r\n")] = '\0';
+    if (strcmp(recorded, boot) != 0) return false;
+    if (strcmp(state, "failed") != 0 && strcmp(state, "interrupted") != 0) return false;
+    snprintf(out, size, "%s", strcmp(state, "failed") == 0 ? "boot-apply-failed" : "boot-apply-interrupted");
+    return true;
+}
+
+/* Readers may see the old or the new file, never a partial write. */
 static void report(const char *boot, const char *result)
 {
-    FILE *file = fopen(STATE_DIR "/daemon.status", "we");
+    struct timespec now;
+    bool timed = clock_gettime(CLOCK_BOOTTIME, &now) == 0;
+    const char *temporary = STATE_DIR "/daemon.status.tmp";
+    FILE *file = fopen(temporary, "we");
     if (!file) return;
-    fprintf(file, "%s\n%s\n", boot, result);
-    fclose(file);
+    int written = fprintf(file, "%s\n%s\n", boot, result);
+    if (timed && written > 0) written = fprintf(file, "%lld\n", (long long)now.tv_sec);
+    bool saved = written > 0 && fflush(file) == 0 && fsync(fileno(file)) == 0;
+    if (fclose(file) != 0) saved = false;
+    if (!saved || rename(temporary, STATE_DIR "/daemon.status") != 0) unlink(temporary);
 }
 
 int main(int argc, char **argv)
@@ -134,7 +158,8 @@ int main(int argc, char **argv)
     if (argc == 3 && strcmp(argv[1], "--control") == 0) {
         if (strcmp(argv[2], "status") != 0 && strcmp(argv[2], "block") != 0 &&
             strcmp(argv[2], "restore") != 0 && strcmp(argv[2], "pause") != 0 &&
-            strcmp(argv[2], "enable") != 0 && strcmp(argv[2], "toggle") != 0) return 2;
+            strcmp(argv[2], "enable") != 0 && strcmp(argv[2], "toggle") != 0 &&
+            strcmp(argv[2], "lock") != 0 && strcmp(argv[2], "adopt") != 0) return 2;
         int fd = lock_file(STATE_DIR "/control.lock", true);
         int locked = -1;
         /* Foreground controls wait briefly for a sweep; never wait indefinitely. */
@@ -175,7 +200,10 @@ int main(int argc, char **argv)
             if (matches(STATE_DIR "/managed", boot)) {
                 if (!matches(STATE_DIR "/snapshot", boot)) report(boot, "snapshot-error");
                 else report(boot, sweep() == 0 ? "ok" : "write-error");
-            } else report(boot, "idle");
+            } else {
+                char result[32];
+                report(boot, boot_apply_result(boot, result, sizeof(result)) ? result : "idle");
+            }
             flock(operation, LOCK_UN);
         }
         /* ponytail: one 3s sweep; no netlink subscription, app hooks or restart supervisor. */

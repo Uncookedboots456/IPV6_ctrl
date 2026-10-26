@@ -1,5 +1,6 @@
 """Native worker + real controller checks on temporary files only (Linux/WSL)."""
 import fcntl
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -19,6 +20,16 @@ def wait_for(condition, timeout=6):
     raise AssertionError('condition timed out')
 
 
+def build_runtime(conf, state, module, boot):
+    binary = module / 'ipv6_daemon'
+    definitions = dict(PROC_CONF_DIR=conf, STATE_DIR=state, MODULE_DIR=module,
+                       BOOT_ID_PATH=boot, SHELL_PATH=shutil.which('mksh') or '/bin/sh')
+    subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-DTEST_BUILD',
+                    *[f'-D{k}="{v}"' for k, v in definitions.items()],
+                    str(ROOT / 'module/daemon.c'), '-o', str(binary)], check=True)
+    return binary
+
+
 class RuntimeTest(unittest.TestCase):
     def test_control_and_reconciliation(self):
         with tempfile.TemporaryDirectory(prefix='ipv6ctrl-runtime-') as directory:
@@ -29,12 +40,7 @@ class RuntimeTest(unittest.TestCase):
             controller = module / 'control.sh'
             shutil.copyfile(ROOT / 'android/app/src/main/assets/system-ipv6.sh', controller)
             shutil.copyfile(ROOT / 'module/protocol', module / 'protocol')
-            binary = module / 'ipv6_daemon'
-            definitions = dict(PROC_CONF_DIR=conf, STATE_DIR=state, MODULE_DIR=module,
-                               BOOT_ID_PATH=boot, SHELL_PATH=shutil.which('mksh') or '/bin/sh')
-            subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Werror', '-DTEST_BUILD',
-                            *[f'-D{k}="{v}"' for k, v in definitions.items()],
-                            str(ROOT / 'module/daemon.c'), '-o', str(binary)], check=True)
+            binary = build_runtime(conf, state, module, boot)
 
             def node(name, value):
                 path = conf / name / 'disable_ipv6'
@@ -183,6 +189,240 @@ class RuntimeTest(unittest.TestCase):
             finally:
                 if worker.poll() is None:
                     worker.terminate(); worker.wait(timeout=4)
+
+    def test_persistent_intent_and_boot_adoption(self):
+        with tempfile.TemporaryDirectory(prefix='ipv6ctrl-intent-') as directory:
+            base = Path(directory)
+            conf, state, module, boot = (base / name for name in ['conf', 'state', 'module', 'boot'])
+            conf.mkdir(); state.mkdir(); module.mkdir()
+            boot.write_text('boot-one\n')
+            controller = module / 'control.sh'
+            shutil.copyfile(ROOT / 'android/app/src/main/assets/system-ipv6.sh', controller)
+            shutil.copyfile(ROOT / 'module/protocol', module / 'protocol')
+            binary = build_runtime(conf, state, module, boot)
+
+            def node(name, value):
+                path = conf / name / 'disable_ipv6'
+                path.parent.mkdir(exist_ok=True)
+                path.write_text(str(value) + '\n')
+                return path
+
+            def control(action, success=True):
+                result = subprocess.run([str(binary), '--control', action], capture_output=True, text=True)
+                self.assertEqual(result.returncode == 0, success, result.stdout + result.stderr)
+                return dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line)
+
+            workers = []
+
+            def start():
+                process = subprocess.Popen([str(binary)])
+                workers.append(process)
+                wait_for(lambda: subprocess.run([str(binary), '--check']).returncode == 0)
+                return process
+
+            all_node = node('all', 0); node('default', 0); node('lo', 0); wifi = node('wlan0', 1)
+            try:
+                # Adoption neither requires a worker nor acts without an intent.
+                self.assertNotEqual(subprocess.run([str(binary), '--check']).returncode, 0)
+                status = control('adopt')
+                self.assertEqual(status['state'], 'mixed')
+                self.assertEqual(status['desired'], 'none')
+                self.assertEqual(status['boot_apply'], 'none')
+                self.assertFalse((state / 'snapshot').exists())
+                self.assertFalse((state / 'managed').exists())
+                self.assertEqual(wifi.read_text(), '1\n')
+                failure = control('lock', False)
+                self.assertEqual(failure['error'], 'runtime-daemon-not-running')
+
+                worker = start()
+                status = control('lock')
+                self.assertEqual(status['state'], 'blocked')
+                self.assertEqual(status['managed'], 'true')
+                self.assertEqual(status['desired'], 'locked')
+                self.assertEqual(status['boot_apply'], 'none')
+                self.assertEqual((state / 'desired').read_text(), 'ipv4-lock\n')
+                self.assertEqual((state / 'snapshot').read_text().splitlines()[0], 'boot-one')
+                wait_for(lambda: control('status')['last_sweep'] == 'ok', timeout=7)
+                status = control('status')
+                self.assertTrue(status['last_sweep_boottime'].isdigit(), status)
+                self.assertTrue(status['last_sweep_age'].isdigit(), status)
+
+                # A failed persistent write is reported as current-boot only.
+                (state / 'desired').unlink(); (state / 'desired').mkdir()
+                failure = control('lock', False)
+                self.assertEqual(failure['error'], 'lock-persist-failed-current-only')
+                self.assertEqual(failure['managed'], 'true')
+                self.assertTrue((state / 'desired').is_dir())
+                (state / 'desired').rmdir()
+                control('pause')
+                self.assertFalse((state / 'managed').exists())
+                self.assertTrue((state / 'snapshot').exists())
+                control('lock')
+
+                # A new boot captures a new baseline and reuses it on repeated adoption.
+                worker.terminate(); worker.wait(timeout=3)
+                boot.write_text('boot-two\n')
+                node('all', 0); node('default', 0); node('lo', 0); wifi.write_text('0\n')
+                # Adoption must not need the worker singleton lock.
+                with (state / 'daemon.lock').open('a+') as singleton:
+                    fcntl.flock(singleton, fcntl.LOCK_EX)
+                    status = control('adopt')
+                self.assertEqual(status['state'], 'blocked')
+                self.assertEqual(status['managed'], 'true')
+                self.assertEqual(status['desired'], 'locked')
+                self.assertEqual(status['boot_apply'], 'applied')
+                self.assertEqual(wifi.read_text(), '1\n')
+                snapshot = (state / 'snapshot').read_text()
+                self.assertEqual(snapshot.splitlines()[0], 'boot-two')
+                self.assertIn('wlan0 0', snapshot)
+                saved = (state / 'snapshot').read_bytes()
+                status = control('adopt')
+                self.assertEqual(status['boot_apply'], 'applied')
+                self.assertEqual((state / 'snapshot').read_bytes(), saved)
+
+                # Pause unlocks; the following boot stays passive.
+                worker = start()
+                wait_for(lambda: control('status')['last_sweep'] == 'ok', timeout=7)
+                control('pause')
+                self.assertEqual(control('status')['desired'], 'none')
+                self.assertFalse((state / 'managed').exists())
+                worker.terminate(); worker.wait(timeout=3)
+                boot.write_text('boot-three\n')
+                node('all', 0); node('default', 0); node('lo', 0); wifi.write_text('0\n')
+                status = control('adopt')
+                self.assertEqual(status['desired'], 'none')
+                self.assertEqual(status['managed'], 'false')
+                self.assertEqual(status['boot_apply'], 'none')
+                self.assertEqual(wifi.read_text(), '0\n')
+                self.assertFalse((state / 'managed').exists())
+
+                # An interrupted marker is one attempt for the boot and worker keeps the error.
+                (state / 'desired').write_text('ipv4-lock\n')
+                (state / 'boot_apply').write_text('boot-three\ninterrupted\napplying\n')
+                failure = control('adopt', False)
+                self.assertEqual(failure['error'], 'boot-apply-already-attempted')
+                self.assertFalse((state / 'managed').exists())
+                self.assertEqual(wifi.read_text(), '0\n')
+                worker = start()
+                wait_for(lambda: control('status')['last_sweep'] == 'boot-apply-interrupted', timeout=7)
+                status = control('status')
+                self.assertEqual(status['boot_apply'], 'interrupted')
+                self.assertTrue(status['last_sweep_boottime'].isdigit(), status)
+                # A verified explicit lock retires the interrupted marker without faking adopt.
+                status = control('lock')
+                self.assertEqual(status['state'], 'blocked')
+                self.assertEqual(status['managed'], 'true')
+                self.assertEqual(status['desired'], 'locked')
+                self.assertEqual(status['boot_apply'], 'manual')
+                snapshot = (state / 'snapshot').read_bytes()
+                status = control('lock')
+                self.assertEqual(status['boot_apply'], 'manual')
+                self.assertEqual((state / 'snapshot').read_bytes(), snapshot)
+                status = control('adopt')
+                self.assertEqual(status['boot_apply'], 'manual')
+                self.assertEqual((state / 'snapshot').read_bytes(), snapshot)
+                wait_for(lambda: control('status')['last_sweep'] == 'ok', timeout=7)
+                status = control('status')
+                self.assertEqual(status['boot_apply'], 'manual')
+                worker.terminate(); worker.wait(timeout=3)
+                control('restore')
+
+                # Snapshot capture failure is fixed, preserves intent and writes no node.
+                boot.write_text('boot-four\n')
+                (state / 'boot_apply').unlink()
+                (state / 'desired').write_text('ipv4-lock\n')
+                all_node.unlink()
+                before = {name: (conf / name / 'disable_ipv6').read_text()
+                          for name in ['default', 'lo', 'wlan0']}
+                failure = control('adopt', False)
+                self.assertEqual(failure['error'], 'snapshot-failed')
+                self.assertEqual((state / 'boot_apply').read_text().splitlines()[1], 'failed')
+                self.assertEqual((state / 'boot_apply').read_text().splitlines()[2], 'snapshot-failed')
+                self.assertTrue((state / 'desired').exists())
+                self.assertFalse((state / 'managed').exists())
+                self.assertFalse((state / 'snapshot').exists())
+                for name, value in before.items():
+                    self.assertEqual((conf / name / 'disable_ipv6').read_text(), value)
+                # The worker keeps reporting the failed attempt instead of idle and never retries.
+                node('all', 0)
+                worker = start()
+                wait_for(lambda: control('status')['last_sweep'] == 'boot-apply-failed', timeout=7)
+                self.assertEqual(control('status')['boot_apply'], 'failed')
+                self.assertEqual(wifi.read_text(), '0\n')
+                self.assertFalse((state / 'managed').exists())
+
+                # Failing to retire the marker keeps the old error, the lock and its snapshot.
+                (state / 'boot_apply').write_text('boot-four\nfailed\napply-failed\n')
+                (state / 'boot_apply.pending').mkdir()
+                failure = control('lock', False)
+                self.assertEqual(failure['error'], 'lock-resolve-failed')
+                self.assertTrue((state / 'managed').exists())
+                self.assertEqual((state / 'desired').read_text(), 'ipv4-lock\n')
+                self.assertEqual((state / 'boot_apply').read_text().splitlines()[1], 'failed')
+                saved = (state / 'snapshot').read_bytes()
+                (state / 'boot_apply.pending').rmdir()
+
+                # A failed persistent write also cannot retire the old failure marker.
+                (state / 'boot_apply').write_text('boot-four\nfailed\napply-failed\n')
+                (state / 'desired').unlink(); (state / 'desired').mkdir()
+                failure = control('lock', False)
+                self.assertEqual(failure['error'], 'lock-persist-failed-current-only')
+                self.assertEqual((state / 'boot_apply').read_text().splitlines()[1], 'failed')
+                self.assertEqual((state / 'snapshot').read_bytes(), saved)
+                (state / 'desired').rmdir()
+
+                # A later verified lock resolves the old failure and is idempotent.
+                status = control('lock')
+                self.assertEqual(status['boot_apply'], 'manual')
+                status = control('lock')
+                self.assertEqual(status['boot_apply'], 'manual')
+                self.assertEqual((state / 'snapshot').read_bytes(), saved)
+                status = control('adopt')
+                self.assertEqual(status['boot_apply'], 'manual')
+                self.assertEqual((state / 'snapshot').read_bytes(), saved)
+                wait_for(lambda: control('status')['last_sweep'] == 'ok', timeout=7)
+                self.assertEqual(control('status')['boot_apply'], 'manual')
+                worker.terminate(); worker.wait(timeout=3)
+                control('restore')
+            finally:
+                for process in workers:
+                    if process.poll() is None:
+                        process.terminate(); process.wait(timeout=4)
+
+    def test_service_supervises_worker_without_repeated_adopt(self):
+        with tempfile.TemporaryDirectory(prefix='ipv6ctrl-service-') as directory:
+            base = Path(directory)
+            module = base / 'module'
+            module.mkdir()
+            shutil.copyfile(ROOT / 'module/service.sh', module / 'service.sh')
+            log = base / 'calls'
+            fake = module / 'ipv6_daemon'
+            fake.write_text('#!/bin/sh\nprintf \'%s\\n\' "$*" >> "$LOG"\nexit 0\n')
+            fake.chmod(0o755)
+            bindir = base / 'bin'
+            bindir.mkdir()
+            sleep = bindir / 'sleep'
+            sleep.write_text('#!/bin/sh\nexit 0\n')
+            sleep.chmod(0o755)
+            environment = dict(os.environ, PATH=str(bindir) + os.pathsep + os.environ['PATH'], LOG=str(log))
+
+            def supervise():
+                subprocess.run([shutil.which('sh'), str(module / 'service.sh')],
+                               env=environment, check=True, timeout=10)
+
+            supervise()
+            calls = log.read_text().splitlines()
+            self.assertEqual(calls.count('--control adopt'), 1)
+            self.assertEqual(calls.count(''), 3)  # initial worker plus two bounded restarts
+            log.unlink()
+
+            (module / 'disable').touch()
+            supervise()
+            self.assertFalse(log.exists())
+            (module / 'disable').unlink()
+            (module / 'remove').touch()
+            supervise()
+            self.assertFalse(log.exists())
 
 
 if __name__ == '__main__':
