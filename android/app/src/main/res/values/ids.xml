@@ -1,0 +1,9 @@
+<resources>
+    <item name="tab_overview" type="id" /><item name="tab_diagnostics" type="id" />
+    <item name="run_online" type="id" /><item name="module_status" type="id" /><item name="online_result" type="id" />
+    <item name="refresh_status" type="id" />
+    <item name="lock_system" type="id" /><item name="restore_system" type="id" />
+    <item name="pause_system" type="id" />
+    <item name="network_loading" type="id" /><item name="system_loading" type="id" /><item name="failure_details" type="id" />
+    <item name="add_tile" type="id" />
+</resources>

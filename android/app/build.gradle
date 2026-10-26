@@ -1,0 +1,20 @@
+plugins { id 'com.android.application' }
+android {
+    namespace = 'dev.ipv6ctrl'
+    compileSdk = 37
+    buildToolsVersion = '36.0.0'
+    enableKotlin = false
+    defaultConfig {
+        applicationId = 'dev.ipv6ctrl'
+        minSdk = 28
+        targetSdk = 36
+        versionCode = 9
+        versionName = '2.0'
+    }
+    buildFeatures { buildConfig = true }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    buildTypes { release { minifyEnabled = false } }
+}

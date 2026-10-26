@@ -1,0 +1,33 @@
+plugins {
+    id 'com.android.application' version '9.2.1' apply false
+}
+
+def onlineChecks = tasks.register('compileOnlineChecks', JavaCompile) {
+    source 'app/src/main/java/dev/ipv6ctrl/OnlineCheck.java', 'tests/OnlineCheckTest.java'
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('online-checks')
+    sourceCompatibility = '17'
+    targetCompatibility = '17'
+    options.encoding = 'UTF-8'
+}
+tasks.register('onlineTest', JavaExec) {
+    dependsOn onlineChecks
+    classpath = files(onlineChecks.flatMap { it.destinationDirectory })
+    mainClass = 'dev.ipv6ctrl.OnlineCheckTest'
+    enableAssertions = true
+}
+
+def clientRules = tasks.register('compileClientRules', JavaCompile) {
+    source 'app/src/main/java/dev/ipv6ctrl/ClientRules.java', 'tests/ClientRulesTest.java'
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('client-rules')
+    sourceCompatibility = '17'
+    targetCompatibility = '17'
+    options.encoding = 'UTF-8'
+}
+tasks.register('rulesTest', JavaExec) {
+    dependsOn clientRules
+    classpath = files(clientRules.flatMap { it.destinationDirectory })
+    mainClass = 'dev.ipv6ctrl.ClientRulesTest'
+    enableAssertions = true
+}
